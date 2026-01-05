@@ -1,0 +1,55 @@
+profile:
+  title: "Software Developer"
+  skills:
+    - Java
+    - Spring Boot
+    - React.js
+    - SQL
+    - Python
+    - GenAI API
+    - Spring Security
+    - JWT
+    - Docker
+    - JavaScript
+    - Web Scraping
+    - Playwright
+    - SQLite
+    - Automation
+  tools:
+    - Git
+    - IntelliJ IDEA
+    - PyCharm
+    - Postman
+    - Claude Code
+    - ChatGPT
+    - Eclipse
+    - Slack
+    - Excel
+  experience_years: 1.5
+  location_preference: "Bangalore, India; Remote"
+  additional_criteria: |
+    Looking for Software Developer / Software Engineer roles (entry to mid-level).
+    Strong in Java, Spring Boot, and React full-stack development.
+    Experience with RCA, API debugging, and SQL automation.
+    Interested in backend, full-stack, or platform engineering teams.
+    Open to product-based companies and startups.
+    Not interested in manual testing or pure support roles.
+
+genai:
+  base_url: "xxxx"
+  login_url: "xxxx"
+  validate_url: "xxxx"
+  chat_url: "xxxx"
+  username: "xxxx"              # Env var reference
+  password: "xxxx"              # Env var reference (base64-encoded)
+  model: "claude-sonnet-4-20250514"
+  application_name: "job-posting-watcher"
+  match_threshold: 6                         # 1-10 score, only notify if >= this
+
+email:
+  sender_email: "xxxx"
+  recipient_email: "xxxx"
+
+schedule:
+  interval_minutes: 60
+  delay_between_sites_seconds: 5

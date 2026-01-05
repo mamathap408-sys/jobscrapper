@@ -1,0 +1,6 @@
+playwright>=1.40
+httpx>=0.25
+schedule>=1.2
+pyyaml>=6.0
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.1
