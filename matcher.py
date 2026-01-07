@@ -53,7 +53,7 @@ def _build_profile_text(profile: dict) -> str:
             Experience: 1.5 years
             ...
     """
-    skills = ", ".join(profile.get("skills", ["Java","GenAI","Python","SQL"]))
+    skills = ", ".join(profile.get("skills", []))
     tools = ", ".join(profile.get("tools", []))
     text = (
         f"Title: {profile.get('title', 'N/A')}\n"

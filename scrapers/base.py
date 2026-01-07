@@ -13,6 +13,7 @@ This ensures all scrapers produce consistent output that the matcher, database,
 and notifier can work with regardless of where the jobs came from.
 """
 
+import hashlib
 from dataclasses import dataclass
 
 
@@ -31,6 +32,7 @@ class JobPosting:
                      May be empty initially and filled in later (e.g., Workday detail fetch).
         url:         Direct link to the job posting page (for the email digest).
         posted_date: When the job was posted, e.g., "2024-01-15". Empty if unavailable.
+        req_id:      Requisition ID from the portal (e.g., "R1308276"). Empty if unavailable.
     """
     job_id: str
     title: str
@@ -39,6 +41,12 @@ class JobPosting:
     description: str
     url: str
     posted_date: str
+    req_id: str = ""
+
+
+def generate_fallback_id(text: str) -> str:
+    """Generate a stable fallback job ID from arbitrary text using MD5."""
+    return hashlib.md5(text.encode()).hexdigest()
 
 
 class BaseScraper:

@@ -1,10 +1,5 @@
 """Tests for email digest builder."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from scrapers.base import JobPosting
 from notifier import _build_html
 

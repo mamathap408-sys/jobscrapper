@@ -2,11 +2,7 @@
 
 import base64
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scrapers.base import JobPosting
 from matcher import _build_profile_text, _build_jobs_text

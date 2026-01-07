@@ -1,11 +1,5 @@
 """Tests for Workday scraper — run against a real Workday portal."""
 
-import sys
-from pathlib import Path
-
-# Add project root to path so imports work
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from scrapers.workday import WorkdayScraper, _parse_workday_url, _build_api_base
 
 

@@ -21,13 +21,14 @@ This is a starting point — for specific non-Workday sites, you may want to
 create a dedicated scraper with site-specific selectors.
 """
 
-import hashlib
 import logging
 from urllib.parse import urlparse, urljoin
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, generate_fallback_id
 
 logger = logging.getLogger(__name__)
+
+_COMMON_SUBDOMAINS = {"www", "jobs", "careers", "career", "recruiting", "hire", "apply", "work"}
 
 
 class GenericScraper(BaseScraper):
@@ -57,7 +58,6 @@ class GenericScraper(BaseScraper):
 
         # Extract company name from hostname (e.g., "danaher" from "jobs.danaher.com")
         parsed = urlparse(url)
-        _COMMON_SUBDOMAINS = {"www", "jobs", "careers", "career", "recruiting", "hire", "apply", "work"}
         parts = parsed.hostname.split(".")
         # Skip common subdomains to find the actual company name
         company = next((p for p in parts if p not in _COMMON_SUBDOMAINS), parts[0])
@@ -131,7 +131,7 @@ class GenericScraper(BaseScraper):
                 seen_urls.add(full_url)
 
                 # Use URL hash as the job ID (no better identifier available)
-                job_id = hashlib.md5(full_url.encode()).hexdigest()
+                job_id = generate_fallback_id(full_url)
                 jobs.append(JobPosting(
                     job_id=job_id,
                     title=text[:200],  # Truncate overly long link text

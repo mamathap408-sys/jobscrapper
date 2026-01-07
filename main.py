@@ -31,7 +31,6 @@ Usage:
 
 import logging
 import signal
-import sys
 import time
 
 import schedule
@@ -41,7 +40,6 @@ from db import JobDatabase
 from matcher import JobMatcher
 from notifier import EmailNotifier
 from scrapers import get_scraper
-from scrapers.workday import WorkdayScraper
 
 # Configure logging to show timestamps and module names
 logging.basicConfig(
@@ -120,37 +118,32 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
             # Create the appropriate scraper (generic needs the Playwright browser)
             if scraper_type == "generic":
                 scraper = get_scraper(scraper_type, browser=_browser)
+            elif scraper_type == "workday":
+                wd_cfg = config.get("workday", {})
+                scraper = get_scraper(
+                    scraper_type,
+                    facets=wd_cfg.get("facets", {}),
+                    max_age_days=wd_cfg.get("max_age_days"),
+                )
             else:
                 scraper = get_scraper(scraper_type)
 
             # Step 1: Scrape all jobs from this portal
             jobs = scraper.scrape(url)
 
-            # Step 2: Update last_seen for jobs we already know about
-            for job in jobs:
-                if db.is_seen(job.job_id):
-                    db.touch_seen(job.job_id)
-
-            # Step 3: Filter to only NEW jobs (not in database)
+            # Step 2: Filter to new jobs (also updates last_seen for known ones)
             new_jobs = db.filter_new(jobs)
-            logger.info("  %d total, %d new", len(jobs), len(new_jobs))
+            logger.info("  [%s] %s — %d total, %d new", scraper_type, url, len(jobs), len(new_jobs))
 
             if new_jobs:
-                # Step 4: For Workday jobs, fetch full descriptions before matching
-                # (the initial scrape only gets titles, not descriptions)
-                if isinstance(scraper, WorkdayScraper):
-                    from scrapers.workday import _build_api_base
-                    api_base = _build_api_base(url)
-                    for job in new_jobs:
-                        if not job.description and job.job_id:
-                            job.description = scraper.fetch_job_detail(
-                                api_base, job.job_id
-                            )
+                # Step 3: Fetch full descriptions if the scraper supports it
+                if hasattr(scraper, "enrich_descriptions"):
+                    scraper.enrich_descriptions(new_jobs)
 
-                # Step 5: Score new jobs against user profile via GenAI
+                # Step 4: Score new jobs against user profile via GenAI
                 scored = matcher.match_jobs(new_jobs)
 
-                # Step 6: Save all scored jobs to database
+                # Step 5: Save all scored jobs to database
                 for job, score, reason in scored:
                     db.save_job(job, match_score=score, match_reason=reason)
                     # Collect high-scoring jobs for the email digest
@@ -171,7 +164,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         if not _shutdown:
             time.sleep(delay)
 
-    # Step 7: Send one digest email with ALL matches from this cycle
+    # Step 6: Send one digest email with ALL matches from this cycle
     if all_matches:
         notifier.send_digest(all_matches)
         # Mark these jobs as notified so we don't email about them again

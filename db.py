@@ -19,7 +19,7 @@ Lifecycle of a job:
   1. Scraper finds a new job → filter_new() says it's new → matcher scores it → save_job()
   2. Next cycle, scraper finds it again → is_seen() returns True → touch_seen() updates last_seen
   3. If score >= threshold → email sent → mark_notified()
-  4. If job disappears from portal → last_seen stops updating → get_stale_jobs() can find it
+  4. If job disappears from portal → last_seen stops updating
 """
 
 import sqlite3
@@ -56,6 +56,7 @@ class JobDatabase:
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS seen_jobs (
                 job_id TEXT PRIMARY KEY,
+                req_id TEXT,
                 title TEXT NOT NULL,
                 company TEXT NOT NULL,
                 location TEXT,
@@ -86,7 +87,8 @@ class JobDatabase:
     def filter_new(self, jobs: list[JobPosting]) -> list[JobPosting]:
         """From a list of scraped jobs, return only the ones we haven't seen before.
 
-        This is the main deduplication method. Called after scraping a portal.
+        Also updates last_seen for already-known jobs in the same pass,
+        so callers don't need a separate touch_seen loop.
 
         Args:
             jobs: All jobs found by the scraper in this cycle.
@@ -94,7 +96,13 @@ class JobDatabase:
         Returns:
             Only the jobs that are NOT in the database (truly new postings).
         """
-        return [j for j in jobs if not self.is_seen(j.job_id)]
+        new_jobs = []
+        for job in jobs:
+            if self.is_seen(job.job_id):
+                self.touch_seen(job.job_id)
+            else:
+                new_jobs.append(job)
+        return new_jobs
 
     def save_job(
         self,
@@ -115,16 +123,16 @@ class JobDatabase:
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
             """
-            INSERT INTO seen_jobs (job_id, title, company, location, url,
+            INSERT INTO seen_jobs (job_id, req_id, title, company, location, url,
                                    first_seen, last_seen, match_score, match_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 match_score = COALESCE(excluded.match_score, match_score),
                 match_reason = COALESCE(excluded.match_reason, match_reason)
             """,
             (
-                job.job_id, job.title, job.company, job.location, job.url,
+                job.job_id, job.req_id, job.title, job.company, job.location, job.url,
                 now, now, match_score, match_reason,
             ),
         )
@@ -155,26 +163,6 @@ class JobDatabase:
             "UPDATE seen_jobs SET last_seen = ? WHERE job_id = ?", (now, job_id)
         )
         self._conn.commit()
-
-    def get_stale_jobs(self, older_than_hours: int = 72) -> list[dict]:
-        """Find jobs that haven't appeared in recent scrapes (likely removed from portal).
-
-        Args:
-            older_than_hours: How many hours without being seen before a job is "stale".
-                              Default is 72 hours (3 days).
-
-        Returns:
-            List of stale job rows as dictionaries.
-        """
-        cutoff = datetime.now(timezone.utc).isoformat()
-        rows = self._conn.execute(
-            """
-            SELECT * FROM seen_jobs
-            WHERE last_seen < datetime(?, '-' || ? || ' hours')
-            """,
-            (cutoff, older_than_hours),
-        ).fetchall()
-        return [dict(r) for r in rows]
 
     def close(self):
         """Close the database connection."""

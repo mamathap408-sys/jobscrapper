@@ -36,7 +36,6 @@ profile:
     Not interested in manual testing or pure support roles.
 
 genai:
-  base_url: "xxxx"
   login_url: "xxxx"
   validate_url: "xxxx"
   chat_url: "xxxx"
@@ -53,3 +52,16 @@ email:
 schedule:
   interval_minutes: 60
   delay_between_sites_seconds: 5
+
+# Workday API filters — narrows results at the API level (faster, fewer jobs to process)
+# IDs are standard across all Workday sites — no need to look them up per company
+workday:
+  max_age_days: 10  # Skip jobs posted more than 10 days ago
+  facets:
+    locationCountry:
+      - "c4f78be1a8f14da0ab49ce1162348a5e"  # India
+    locationRegionStateProvince:
+      - "701eb5584934425d930bc84b9e8b04eb"  # Karnataka (Bangalore)
+      - "3cfc61cd0cf4100004b86c8483b80007"  # Telangana (Hyderabad)
+      - "a3c37012f51642f4a7b3dafc8ac37801"  # Maharashtra (Pune/Mumbai)
+    # To get all India jobs, comment out locationRegionStateProvince above
