@@ -51,10 +51,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Only request permission to send emails (not read, not manage)
 _SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
-# File paths relative to project root
-_PROJECT_DIR = Path(__file__).parent
-_CREDENTIALS_PATH = _PROJECT_DIR / "credentials.json"  # From Google Cloud Console
-_TOKEN_PATH = _PROJECT_DIR / "token.json"               # Auto-created after OAuth login
+# File paths relative to data/ directory
+_DATA_DIR = Path(__file__).parent.parent / "data"
+_CREDENTIALS_PATH = _DATA_DIR / "credentials.json"  # From Google Cloud Console
+_TOKEN_PATH = _DATA_DIR / "token.json"               # Auto-created after OAuth login
 
 
 def _build_html(matches: list[tuple[JobPosting, int, str]]) -> str:

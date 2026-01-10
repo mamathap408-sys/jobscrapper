@@ -1,7 +1,7 @@
 """Tests for email digest builder."""
 
 from scrapers.base import JobPosting
-from notifier import _build_html
+from services.notifier import _build_html
 
 
 def _sample_match():

@@ -4,7 +4,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from scrapers.base import JobPosting
-from notifier import EmailNotifier
+from services.notifier import EmailNotifier
 
 
 def test_send_real_email():

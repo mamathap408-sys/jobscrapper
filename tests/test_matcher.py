@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from scrapers.base import JobPosting
-from matcher import _build_profile_text, _build_jobs_text
+from services.matcher import _build_profile_text, _build_jobs_text
 
 
 def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
@@ -79,7 +79,7 @@ def test_matcher_with_mock_gateway():
     }
 
     # Mock httpx.Client
-    with patch("matcher.httpx.Client") as MockClient:
+    with patch("services.matcher.httpx.Client") as MockClient:
         mock_client = MagicMock()
         MockClient.return_value = mock_client
 
@@ -106,7 +106,7 @@ def test_matcher_with_mock_gateway():
         mock_client.post.side_effect = side_effect_post
         mock_client.get.return_value = mock_validate_resp
 
-        from matcher import JobMatcher
+        from services.matcher import JobMatcher
         m = JobMatcher(_sample_config())
         results = m.match_jobs([_sample_job()])
 

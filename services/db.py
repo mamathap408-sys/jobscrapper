@@ -31,8 +31,8 @@ from scrapers.base import JobPosting
 
 logger = logging.getLogger(__name__)
 
-# Database file lives in the project root directory
-DB_PATH = Path(__file__).parent / "jobs.db"
+# Database file lives in the data/ directory
+DB_PATH = Path(__file__).parent.parent / "data" / "jobs.db"
 
 
 class JobDatabase:

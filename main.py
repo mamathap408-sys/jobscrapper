@@ -36,9 +36,9 @@ import time
 import schedule
 
 from config import load_config, load_urls
-from db import JobDatabase
-from matcher import JobMatcher
-from notifier import EmailNotifier
+from services.db import JobDatabase
+from services.matcher import JobMatcher
+from services.notifier import EmailNotifier
 from scrapers import get_scraper
 
 # Configure logging to show timestamps and module names
