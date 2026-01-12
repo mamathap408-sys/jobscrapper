@@ -27,6 +27,8 @@ from pathlib import Path
 
 import yaml
 
+from scrapers.base import JobProfile
+
 # Paths are relative to this file's directory (the project root)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 URLS_PATH = Path(__file__).parent / "urls.txt"
@@ -74,7 +76,19 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     """
     with open(path) as f:
         raw = yaml.safe_load(f)
-    return _resolve_env_vars(raw)
+    config = _resolve_env_vars(raw)
+
+    p = config["profile"]
+    config["profile"] = JobProfile(
+        title=p.get("title", ""),
+        skills=p.get("skills", []),
+        tools=p.get("tools", []),
+        experience_years=float(p.get("experience_years", 0)),
+        location_preference=p.get("location_preference", ""),
+        additional_criteria=p.get("additional_criteria", ""),
+    )
+
+    return config
 
 
 def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:

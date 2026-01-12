@@ -18,6 +18,17 @@ from dataclasses import dataclass
 
 
 @dataclass
+class JobProfile:
+    """The user's job search profile, loaded from config.yaml."""
+    title: str
+    skills: list[str]
+    tools: list[str]
+    experience_years: float
+    location_preference: str
+    additional_criteria: str = ""
+
+
+@dataclass
 class JobPosting:
     """Represents a single job posting scraped from a career portal.
 
@@ -32,7 +43,7 @@ class JobPosting:
                      May be empty initially and filled in later (e.g., Workday detail fetch).
         url:         Direct link to the job posting page (for the email digest).
         posted_date: When the job was posted, e.g., "2024-01-15". Empty if unavailable.
-        req_id:      Requisition ID from the portal (e.g., "R1308276"). Empty if unavailable.
+        job_num:     Job number / requisition ID from the portal (e.g., "R1308276"). Empty if unavailable.
     """
     job_id: str
     title: str
@@ -41,7 +52,7 @@ class JobPosting:
     description: str
     url: str
     posted_date: str
-    req_id: str = ""
+    job_num: str = ""
 
 
 def generate_fallback_id(text: str) -> str:

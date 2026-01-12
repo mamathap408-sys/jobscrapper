@@ -27,7 +27,7 @@ import logging
 
 import httpx
 
-from scrapers.base import JobPosting
+from scrapers.base import JobPosting, JobProfile
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ def _decode_base64(encoded: str) -> str:
     return base64.b64decode(encoded).decode("utf-8")
 
 
-def _build_profile_text(profile: dict) -> str:
-    """Format the user's profile from config.yaml into a readable text block for the LLM prompt.
+def _build_profile_text(profile: JobProfile) -> str:
+    """Format the user's profile into a readable text block for the LLM prompt.
 
     Args:
-        profile: The 'profile' section from config.yaml containing skills, title, etc.
+        profile: The user's JobProfile loaded from config.yaml.
 
     Returns:
         A formatted string like:
@@ -53,14 +53,14 @@ def _build_profile_text(profile: dict) -> str:
             Experience: 1.5 years
             ...
     """
-    skills = ", ".join(profile.get("skills", []))
-    tools = ", ".join(profile.get("tools", []))
+    skills = ", ".join(profile.skills)
+    tools = ", ".join(profile.tools)
     text = (
-        f"Title: {profile.get('title', 'N/A')}\n"
+        f"Title: {profile.title or 'N/A'}\n"
         f"Skills: {skills}\n"
-        f"Experience: {profile.get('experience_years', '1.5')} years\n"
-        f"Location preference: {profile.get('location_preference', 'Any')}\n"
-        f"Additional criteria:\n{profile.get('additional_criteria', 'None')}"
+        f"Experience: {profile.experience_years} years\n"
+        f"Location preference: {profile.location_preference or 'Any'}\n"
+        f"Additional criteria:\n{profile.additional_criteria or 'None'}"
     )
     if tools:
         text += f"\nTools: {tools}"

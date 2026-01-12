@@ -133,7 +133,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
 
             # Step 2: Filter to new jobs (also updates last_seen for known ones)
             new_jobs = db.filter_new(jobs)
-            logger.info("  [%s] %s — %d total, %d new", scraper_type, url, len(jobs), len(new_jobs))
+            logger.info("[%s] %s — %d total, %d new", scraper_type, url, len(jobs), len(new_jobs))
 
             if new_jobs:
                 # Step 3: Fetch full descriptions if the scraper supports it

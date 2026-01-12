@@ -23,6 +23,7 @@ def test_build_api_base():
     assert api_base == "https://company1.wd5.myworkdayjobs.com/wday/cxs/company1/External"
 
 
+
 def test_scrape_real_portal():
     """Integration test — requires network access.
 

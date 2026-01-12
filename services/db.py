@@ -56,7 +56,7 @@ class JobDatabase:
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS seen_jobs (
                 job_id TEXT PRIMARY KEY,
-                req_id TEXT,
+                job_num TEXT,
                 title TEXT NOT NULL,
                 company TEXT NOT NULL,
                 location TEXT,
@@ -123,7 +123,7 @@ class JobDatabase:
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
             """
-            INSERT INTO seen_jobs (job_id, req_id, title, company, location, url,
+            INSERT INTO seen_jobs (job_id, job_num, title, company, location, url,
                                    first_seen, last_seen, match_score, match_reason)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
@@ -132,7 +132,7 @@ class JobDatabase:
                 match_reason = COALESCE(excluded.match_reason, match_reason)
             """,
             (
-                job.job_id, job.req_id, job.title, job.company, job.location, job.url,
+                job.job_id, job.job_num, job.title, job.company, job.location, job.url,
                 now, now, match_score, match_reason,
             ),
         )

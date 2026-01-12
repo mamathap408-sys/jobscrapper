@@ -239,7 +239,7 @@ class WorkdayScraper(BaseScraper):
             title = item.get("title", "")
             external_path = item.get("externalPath", "")
             bullet_fields = item.get("bulletFields", [])
-            req_id = bullet_fields[0] if bullet_fields else ""
+            job_num = bullet_fields[0] if bullet_fields else ""
             location = item.get("locationsText", "")
             posted_date = item.get("postedOn", "")
 
@@ -260,7 +260,7 @@ class WorkdayScraper(BaseScraper):
                 description="",  # Filled later by fetch_job_detail()
                 url=job_url,
                 posted_date=posted_date,
-                req_id=req_id,
+                job_num=job_num,
             ))
 
         return jobs, total, facets_data

@@ -4,7 +4,7 @@ import base64
 import json
 from unittest.mock import MagicMock, patch
 
-from scrapers.base import JobPosting
+from scrapers.base import JobPosting, JobProfile
 from services.matcher import _build_profile_text, _build_jobs_text
 
 
@@ -21,14 +21,14 @@ def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
 
 
 def _sample_profile():
-    return {
-        "title": "Software Engineer",
-        "skills": ["Python", "AWS", "Distributed Systems"],
-        "tools": ["Git", "Claude Code"],
-        "experience_years": 5,
-        "location_preference": "Remote",
-        "additional_criteria": "Looking for senior IC backend roles.",
-    }
+    return JobProfile(
+        title="Software Engineer",
+        skills=["Python", "AWS", "Distributed Systems"],
+        tools=["Git", "Claude Code"],
+        experience_years=5,
+        location_preference="Remote",
+        additional_criteria="Looking for senior IC backend roles.",
+    )
 
 
 def _sample_config():
