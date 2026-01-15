@@ -233,7 +233,9 @@ class WorkdayScraper(BaseScraper):
         postings = data.get("jobPostings", [])
         jobs = []
         parsed = urlparse(portal_url)
-        url_prefix = f"{parsed.scheme}://{parsed.hostname}"
+        # Build URL base with portal path (e.g., /en-US/External or /DanaherJobs)
+        portal_path = parsed.path.rstrip("/")
+        url_base = f"{parsed.scheme}://{parsed.hostname}{portal_path}"
 
         for item in postings:
             title = item.get("title", "")
@@ -246,7 +248,7 @@ class WorkdayScraper(BaseScraper):
             # Use subsidiary name (e.g., "Pall", "Cytiva") if available, else fallback
             sub_company = bullet_fields[1] if len(bullet_fields) > 1 else company
 
-            job_url = f"{url_prefix}{external_path}"
+            job_url = f"{url_base}{external_path}"
 
             # Use externalPath as the unique ID (stable across scrapes)
             # Fallback to MD5 hash if no path is available
