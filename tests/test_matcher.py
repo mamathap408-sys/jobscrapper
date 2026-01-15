@@ -20,15 +20,17 @@ def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
     )
 
 
-def _sample_profile():
-    return JobProfile(
-        title="Software Engineer",
-        skills=["Python", "AWS", "Distributed Systems"],
-        tools=["Git", "Claude Code"],
-        experience_years=5,
-        location_preference="Remote",
-        additional_criteria="Looking for senior IC backend roles.",
-    )
+def _sample_profiles():
+    return [
+        JobProfile(
+            title="Software Engineer",
+            skills=["Python", "AWS", "Distributed Systems"],
+            tools=["Git", "Claude Code"],
+            experience_years=5,
+            location_preference="Remote",
+            additional_criteria="Looking for senior IC backend roles.",
+        ),
+    ]
 
 
 def _sample_config():
@@ -43,13 +45,14 @@ def _sample_config():
             "application_name": "test-app",
             "match_threshold": 6,
         },
-        "profile": _sample_profile(),
+        "profiles": _sample_profiles(),
+        "scoring_instructions": "Score 1-10 based on skill match.",
     }
 
 
 def test_build_profile_text():
-    text = _build_profile_text(_sample_profile())
-    assert "Software Engineer" in text
+    text = _build_profile_text(_sample_profiles())
+    assert "Profile 1: Software Engineer" in text
     assert "Python" in text
     assert "5 years" in text
     assert "Remote" in text
@@ -121,3 +124,4 @@ if __name__ == "__main__":
     test_build_jobs_text()
     test_matcher_with_mock_gateway()
     print("All matcher tests passed!")
+

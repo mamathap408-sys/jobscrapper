@@ -1,39 +1,106 @@
-profile:
-  title: "Software Developer"
-  skills:
-    - Java
-    - Spring Boot
-    - React.js
-    - SQL
-    - Python
-    - GenAI API
-    - Spring Security
-    - JWT
-    - Docker
-    - JavaScript
-    - Web Scraping
-    - Playwright
-    - SQLite
-    - Automation
-  tools:
-    - Git
-    - IntelliJ IDEA
-    - PyCharm
-    - Postman
-    - Claude Code
-    - ChatGPT
-    - Eclipse
-    - Slack
-    - Excel
-  experience_years: 1.5
-  location_preference: "Bangalore, India; Remote"
-  additional_criteria: |
-    Looking for Software Developer / Software Engineer roles (entry to mid-level).
-    Strong in Java, Spring Boot, and React full-stack development.
-    Experience with RCA, API debugging, and SQL automation.
-    Interested in backend, full-stack, or platform engineering teams.
-    Open to product-based companies and startups.
-    Not interested in manual testing or pure support roles.
+profiles:
+  - title: "Software Developer"
+    skills:
+      - Java
+      - Spring Boot
+      - React.js
+      - SQL
+      - Python
+      - GenAI API
+      - Spring Security
+      - JWT
+      - Docker
+      - JavaScript
+      - Web Scraping
+      - Playwright
+      - SQLite
+      - Automation
+    tools:
+      - Git
+      - IntelliJ IDEA
+      - PyCharm
+      - Postman
+      - Claude Code
+      - ChatGPT
+      - Eclipse
+      - Slack
+      - Excel
+    experience_years: 1.5
+    location_preference: "Bangalore, India; Remote"
+    additional_criteria: |
+      Looking for Software Developer / Software Engineer roles (entry to mid-level).
+      Strong in Java, Python, GenAI and Spring Boot.
+      Experience with RCA, API debugging, and Technical Support.
+      Interested in backend, full-stack, or platform engineering teams.
+      Open to product-based companies and startups.
+
+  - title: "Technical Support Engineer"
+    skills:
+      - Troubleshooting
+      - SaaS Platforms
+      - API Debugging
+      - SQL
+      - RCA (Root Cause Analysis)
+      - Ticketing Systems
+      - Customer Communication
+      - Documentation
+    tools:
+      - Postman
+      - Slack
+      - Excel
+      - JIRA
+      - ServiceNow
+    experience_years: 1.5
+    location_preference: "Bangalore, India; Remote"
+    additional_criteria: |
+      Looking for Technical Support / SaaS Support Engineer roles.
+      Experience at Amazon handling escalations, RCA, and API debugging.
+      Strong communication and troubleshooting skills.
+      Open to product-based companies with SaaS platforms.
+      Not interested in pure call-center or L1-only support roles.
+
+scoring_instructions: |
+  Score each job by adding up points from the categories below. Match against the best-fitting profile.
+
+  ## Experience Required (max 5 points)
+  - 0 years or "entry-level" → 5 points
+  - 0-1 years → 5 points
+  - 0-2 years → 5 points
+  - 1 year → 4 points
+  - 1-2 years → 3 points
+  - 2 years → 1 points
+  - 2-3 years → 0 points
+  - 2-4 years → -0 point
+  - 3+ years → 1 point (score floor)
+
+  ## Role Type (max 4 points)
+  - SDE / Software Developer / Software Engineer / Backend / Full-Stack → 4 points
+  - QA / SDET / Test Engineer / SWE-adjacent roles → 3 points
+  - Customer Support / Technical Support / SaaS Support → 2 points
+  - Unrelated roles (HR, Sales, Marketing, etc.) → 0 points
+
+  ## Location (bonus points)
+  - Bangalore → +2
+  - Hyderabad → +1
+  - Pune → +0
+  - Remote / India-wide → +2
+  - Other locations → -1
+
+  ## Skills Match (max 2 points)
+  - 3+ candidate skills mentioned in the job description → +2
+  - 1-2 candidate skills mentioned → +1
+  - 0 skills matched → 0
+
+  ## Position Level (penalty)
+  - Entry-level / Junior / L3 / L4 / SDE-1 → no penalty
+  - SDE-2 / Senior / L5 / SDE-3 → -2 points
+  - Staff / Principal / L6+ / Manager / Lead / Architect → 1 point (score floor, not a match)
+
+  ## Batch / Graduation Year (penalty)
+  - If the job specifies "2024 batch only", "2025 graduates", or any batch requirement of 2024 or later → -2 points
+  - The candidate's passout year is 2022, so 2022/2023 batch requirements are fine (no penalty).
+
+  Final score = Experience + Role Type + Location + Skills Match + Position Level penalty + Batch penalty (cap at 10, floor at 1).
 
 genai:
   login_url: "xxxx"

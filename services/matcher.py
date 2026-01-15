@@ -40,31 +40,35 @@ def _decode_base64(encoded: str) -> str:
     return base64.b64decode(encoded).decode("utf-8")
 
 
-def _build_profile_text(profile: JobProfile) -> str:
-    """Format the user's profile into a readable text block for the LLM prompt.
+def _build_profile_text(profiles: list[JobProfile]) -> str:
+    """Format the user's profiles into a readable text block for the LLM prompt.
 
     Args:
-        profile: The user's JobProfile loaded from config.yaml.
+        profiles: List of JobProfile objects loaded from config.yaml.
 
     Returns:
-        A formatted string like:
+        A formatted string with each profile numbered, e.g.:
+            --- Profile 1: Software Developer ---
             Title: Software Developer
             Skills: Java, Spring Boot, Python
-            Experience: 1.5 years
             ...
     """
-    skills = ", ".join(profile.skills)
-    tools = ", ".join(profile.tools)
-    text = (
-        f"Title: {profile.title or 'N/A'}\n"
-        f"Skills: {skills}\n"
-        f"Experience: {profile.experience_years} years\n"
-        f"Location preference: {profile.location_preference or 'Any'}\n"
-        f"Additional criteria:\n{profile.additional_criteria or 'None'}"
-    )
-    if tools:
-        text += f"\nTools: {tools}"
-    return text
+    sections = []
+    for i, profile in enumerate(profiles, 1):
+        skills = ", ".join(profile.skills)
+        tools = ", ".join(profile.tools)
+        text = (
+            f"--- Profile {i}: {profile.title} ---\n"
+            f"Title: {profile.title or 'N/A'}\n"
+            f"Skills: {skills}\n"
+            f"Experience: {profile.experience_years} years\n"
+            f"Location preference: {profile.location_preference or 'Any'}\n"
+            f"Additional criteria:\n{profile.additional_criteria or 'None'}"
+        )
+        if tools:
+            text += f"\nTools: {tools}"
+        sections.append(text)
+    return "\n\n".join(sections)
 
 
 def _build_jobs_text(jobs: list[JobPosting]) -> str:
@@ -113,8 +117,9 @@ class JobMatcher:
         self._model = genai_cfg["model"]                 # e.g., "claude-sonnet-4-20250514"
         self._app_name = genai_cfg.get("application_name", "job-posting-watcher")
         self._threshold = genai_cfg.get("match_threshold", 6)  # Only email if score >= this
-        self._profile = config["profile"]
-        self._profile_text = _build_profile_text(self._profile)
+        self._profiles = config["profiles"]
+        self._profile_text = _build_profile_text(self._profiles)
+        self._scoring_instructions = config["scoring_instructions"]
         self._token = None  # JWT token, obtained on first use
         # SSL verification disabled because corporate Zscaler proxy intercepts HTTPS
         self._client = httpx.Client(timeout=60, verify=False)
@@ -205,17 +210,25 @@ class JobMatcher:
         jobs_text = _build_jobs_text(jobs)
 
         # The prompt asks the LLM to return a JSON array with score + reason per job
+        scoring_section = (
+            "## Scoring Instructions\n"
+            f"{self._scoring_instructions}\n\n"
+        )
+
         prompt = (
-            "You are a job matching assistant. Score each job posting on how well "
-            "it matches the candidate profile below. For each job, provide:\n"
+            "You are a job matching assistant. The candidate has multiple profiles "
+            "representing different types of roles they are looking for. Score each "
+            "job posting against the BEST-matching profile. For each job, provide:\n"
             "- A relevance score from 1 (terrible match) to 10 (perfect match)\n"
+            "- The name of the best-matching profile\n"
             "- A brief reason (1-2 sentences)\n\n"
-            "## Candidate Profile\n"
+            "## Candidate Profiles\n"
             f"{self._profile_text}\n\n"
+            f"{scoring_section}"
             "## Job Postings\n"
             f"{jobs_text}\n\n"
             "Respond ONLY with a JSON array (no markdown fences). Each element:\n"
-            '{"job_id": "...", "score": N, "reason": "..."}\n'
+            '{"job_id": "...", "score": N, "matched_profile": "...", "reason": "..."}\n'
             "Return one element per job, in the same order."
         )
 

@@ -10,7 +10,7 @@ How it works:
   4. If an env var is missing, raises ValueError (fail-fast)
 
 config.yaml contains:
-  - profile: user's job preferences (skills, experience, location)
+  - profiles: list of user's job profiles (skills, experience, location)
   - genai: LLM gateway credentials and model settings
   - email: sender/recipient Gmail addresses
   - schedule: how often to check and delay between sites
@@ -78,15 +78,18 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         raw = yaml.safe_load(f)
     config = _resolve_env_vars(raw)
 
-    p = config["profile"]
-    config["profile"] = JobProfile(
-        title=p.get("title", ""),
-        skills=p.get("skills", []),
-        tools=p.get("tools", []),
-        experience_years=float(p.get("experience_years", 0)),
-        location_preference=p.get("location_preference", ""),
-        additional_criteria=p.get("additional_criteria", ""),
-    )
+    profiles_raw = config.get("profiles", [])
+    config["profiles"] = [
+        JobProfile(
+            title=p.get("title", ""),
+            skills=p.get("skills", []),
+            tools=p.get("tools", []),
+            experience_years=float(p.get("experience_years", 0)),
+            location_preference=p.get("location_preference", ""),
+            additional_criteria=p.get("additional_criteria", ""),
+        )
+        for p in profiles_raw
+    ]
 
     return config
 

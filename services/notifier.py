@@ -251,7 +251,9 @@ class EmailNotifier:
 
         # Build email with both HTML and plain text versions
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Job Match Digest — {len(matches)} new match(es)"
+        companies = sorted(set(job.company for job, _, _ in matches))
+        companies_str = ", ".join(companies)
+        msg["Subject"] = f"Job Match Digest — {len(matches)} new match(es) — {companies_str}"
         msg["From"] = self._sender
         msg["To"] = self._recipient
 
