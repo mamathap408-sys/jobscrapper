@@ -1,1 +1,28 @@
+# Workday portals (scraped via JSON API)
 workday | https://danaher.wd1.myworkdayjobs.com/DanaherJobs
+workday | https://gea.wd3.myworkdayjobs.com/en-US/GEACareers
+workday | https://intel.wd1.myworkdayjobs.com/en-US/External
+workday | https://iqvia.wd1.myworkdayjobs.com/en-US/iqvia
+workday | https://dell.wd1.myworkdayjobs.com/en-US/External
+workday | https://target.wd5.myworkdayjobs.com/en-US/targetcareers
+workday | https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced
+workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
+workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
+workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
+workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
+
+# --- NOT supported (no Workday JSON API) ---
+# Amazon          | https://www.amazon.jobs/content/en-gb/locations/india/bangalore (custom platform)
+# Google          | https://www.google.com/about/careers/applications/jobs/results (custom platform)
+# Goldman Sachs   | https://higher.gs.com/results?page=1&sort=RELEVANCE (custom platform)
+# Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)
+# IBM             | https://www.ibm.com/in-en/careers/search (Avature)
+# TCS             | https://ibegin.tcsapps.com/candidate/jobs/search (custom)
+# SAP             | https://jobs.sap.com/go/SAP-Jobs-in-India/851201/ (SuccessFactors)
+# JPMC            | https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/jobs (Oracle Cloud)
+# Qualcomm        | https://careers.qualcomm.com/careers (Workday behind auth, API returns 500/422)
+# PhonePe         | https://www.phonepe.com/careers/job-openings/ (custom)
+# Glean           | https://job-boards.greenhouse.io/gleanwork (Greenhouse)
+# Myntra          | https://jobs.myntra.com/home (custom)
+# Zepto           | https://zepto.talentrecruit.com/career-page (TalentRecruit)
+# Infosys         | https://career.infosys.com/jobs (custom)
