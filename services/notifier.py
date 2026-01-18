@@ -57,24 +57,23 @@ _CREDENTIALS_PATH = _DATA_DIR / "credentials.json"  # From Google Cloud Console
 _TOKEN_PATH = _DATA_DIR / "token.json"               # Auto-created after OAuth login
 
 
-def _build_html(matches: list[tuple[JobPosting, int, str]]) -> str:
-    """Build an HTML email body with a table of matched jobs.
-
-    Each job gets a row with:
-      - Job title (clickable link to the posting)
-      - Company name and location
-      - Score with color coding: green (8+), yellow (6-7), red (<6)
-      - Reason from the GenAI matcher
+def _build_html(
+    matches: list[tuple[JobPosting, int, str]],
+    filtered: list[tuple[JobPosting, int, str]] | None = None,
+    company: str = "",
+) -> str:
+    """Build an HTML email body with matched jobs and optionally filtered jobs.
 
     Args:
-        matches: List of (JobPosting, score, reason) tuples.
+        matches:  List of (JobPosting, score, reason) tuples above threshold.
+        filtered: List of (JobPosting, score, reason) tuples below threshold.
+        company:  Company name to display in the heading.
 
     Returns:
         Complete HTML string ready to be used as email body.
     """
     rows = []
     for job, score, reason in matches:
-        # Color-code the score: green=great, yellow=good, red=weak
         color = '#34a853' if score >= 8 else '#fbbc04' if score >= 6 else '#ea4335'
         rows.append(f"""
         <tr>
@@ -97,11 +96,36 @@ def _build_html(matches: list[tuple[JobPosting, int, str]]) -> str:
         </tr>
         """)
 
+    # Build filtered jobs section
+    filtered_html = ""
+    if filtered:
+        filtered_rows = []
+        for job, score, reason in filtered:
+            filtered_rows.append(f"""
+            <tr>
+                <td style="padding:6px 12px; border-bottom:1px solid #eee; color:#888;">
+                    {job.title} <span style="color:#aaa;">({job.company})</span>
+                </td>
+                <td style="padding:6px 12px; border-bottom:1px solid #eee; color:#aaa; font-size:0.85em;">
+                    {score}/10 &mdash; {reason}
+                </td>
+            </tr>
+            """)
+        filtered_html = f"""
+        <h3 style="color:#999; margin-top:30px;">Filtered Jobs ({len(filtered)})</h3>
+        <table style="width:100%; border-collapse:collapse;">
+            <tbody>
+                {''.join(filtered_rows)}
+            </tbody>
+        </table>
+        """
+
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    heading = f"{company} — Job Match Digest" if company else "Job Match Digest"
     return f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:800px; margin:auto;">
-        <h2 style="color:#333;">Job Match Digest</h2>
+        <h2 style="color:#333;">{heading}</h2>
         <p style="color:#666;">{len(matches)} matching job(s) found &mdash; {timestamp}</p>
         <table style="width:100%; border-collapse:collapse;">
             <thead>
@@ -115,6 +139,7 @@ def _build_html(matches: list[tuple[JobPosting, int, str]]) -> str:
                 {''.join(rows)}
             </tbody>
         </table>
+        {filtered_html}
         <p style="color:#999; font-size:0.8em; margin-top:20px;">
             Sent by Job Posting Watcher
         </p>
@@ -240,34 +265,53 @@ class EmailNotifier:
         http = _RequestsHttp(session, creds)
         return build("gmail", "v1", http=http)
 
-    def send_digest(self, matches: list[tuple[JobPosting, int, str]]):
-        """Send an HTML digest email with all matched jobs from this cycle.
+    def send_digest(
+        self,
+        matches: list[tuple[JobPosting, int, str]],
+        filtered: list[tuple[JobPosting, int, str]] | None = None,
+        company: str = "",
+    ):
+        """Send an HTML digest email with matched and filtered jobs.
 
         Args:
-            matches: List of (JobPosting, score, reason) tuples to include.
-                     Only jobs that scored >= match_threshold should be here.
+            matches:  High-scoring jobs (>= threshold).
+            filtered: Low-scoring jobs (< threshold), shown at the bottom for a quick glance.
+            company:  Company name for per-company emails.
         """
         self._ensure_service()
 
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
         # Build email with both HTML and plain text versions
         msg = MIMEMultipart("alternative")
-        companies = sorted(set(job.company for job, _, _ in matches))
-        companies_str = ", ".join(companies)
-        msg["Subject"] = f"Job Match Digest — {len(matches)} new match(es) — {companies_str}"
+
+        # Subject: "Important" if real matches, "Low-Priority" if only filtered
+        if matches:
+            label = company or "Jobs"
+            msg["Subject"] = f"[Important] {label} — {len(matches)} match(es) — {now_str}"
+        else:
+            label = company or "Jobs"
+            msg["Subject"] = f"[Low-Priority] {label} — {len(filtered or [])} filtered job(s), no strong matches — {now_str}"
+
         msg["From"] = self._sender
         msg["To"] = self._recipient
 
         # Plain text version (for email clients that don't render HTML)
-        plain_lines = ["Job Match Digest\n"]
+        heading = f"{company} — Job Match Digest" if company else "Job Match Digest"
+        plain_lines = [f"{heading}\n"]
         for job, score, reason in matches:
             plain_lines.append(
                 f"- {job.title} at {job.company} ({job.location}) "
                 f"— Score: {score}/10\n  {reason}\n  {job.url}\n"
             )
+        if filtered:
+            plain_lines.append("\n--- Filtered Jobs ---\n")
+            for job, score, reason in filtered:
+                plain_lines.append(f"- {job.title} ({job.company}) — {score}/10: {reason}\n")
         msg.attach(MIMEText("\n".join(plain_lines), "plain"))
 
         # HTML version (nice formatted table with color-coded scores)
-        msg.attach(MIMEText(_build_html(matches), "html"))
+        msg.attach(MIMEText(_build_html(matches, filtered, company=company), "html"))
 
         # Encode the email as base64 and send via Gmail API
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

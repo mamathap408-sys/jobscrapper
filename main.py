@@ -107,7 +107,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     """
     urls = load_urls()  # Re-read urls.txt each cycle (in case you add new portals)
     delay = config["schedule"].get("delay_between_sites_seconds", 5)
-    all_matches = []    # Collect matches across all portals for one digest email
+    total_matches = 0
+    total_filtered = 0
 
     for scraper_type, url in urls:
         if _shutdown:
@@ -143,15 +144,28 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                 # Step 4: Score new jobs against user profile via GenAI
                 scored = matcher.match_jobs(new_jobs)
 
-                # Step 5: Save all scored jobs to database
+                # Step 5: Save scored jobs and split into matches vs filtered
+                matches = []
+                filtered = []
                 for job, score, reason in scored:
                     db.save_job(job, match_score=score, match_reason=reason)
-                    # Collect high-scoring jobs for the email digest
                     if score >= matcher.threshold:
-                        all_matches.append((job, score, reason))
+                        matches.append((job, score, reason))
                         logger.info(
                             "  MATCH: %s at %s (score=%d)", job.title, job.company, score
                         )
+                    else:
+                        filtered.append((job, score, reason))
+
+                # Step 6: Send per-company email immediately
+                if matches or filtered:
+                    company = new_jobs[0].company
+                    notifier.send_digest(matches, filtered=filtered, company=company)
+                    for job, _, _ in matches:
+                        db.mark_notified(job.job_id)
+
+                total_matches += len(matches)
+                total_filtered += len(filtered)
 
             # Clean up scraper resources (e.g., httpx client connections)
             if hasattr(scraper, "close"):
@@ -164,16 +178,9 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         if not _shutdown:
             time.sleep(delay)
 
-    # Step 6: Send one digest email with ALL matches from this cycle
-    if all_matches:
-        notifier.send_digest(all_matches)
-        # Mark these jobs as notified so we don't email about them again
-        for job, _, _ in all_matches:
-            db.mark_notified(job.job_id)
-
     logger.info(
-        "Cycle complete: %d portals checked, %d matches",
-        len(urls), len(all_matches),
+        "Cycle complete: %d portals checked, %d matches, %d filtered",
+        len(urls), total_matches, total_filtered,
     )
 
 

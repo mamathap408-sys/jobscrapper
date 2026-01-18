@@ -108,7 +108,7 @@ genai:
   chat_url: "xxxx"
   username: "xxxx"              # Env var reference
   password: "xxxx"              # Env var reference (base64-encoded)
-  model: "claude-sonnet-4-20250514"
+  model: "claude-opus-4-6"
   application_name: "job-posting-watcher"
   match_threshold: 6                         # 1-10 score, only notify if >= this
 
