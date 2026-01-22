@@ -138,6 +138,32 @@ def _init_playwright():
         return None
 
 
+def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locations: dict):
+    """Create the appropriate scraper instance for a given URL.
+
+    Args:
+        scraper_type:  The scraper type string from urls.txt (e.g. "workday", "generic").
+        config:        The loaded config.yaml dictionary.
+        url:           The portal URL being scraped.
+        browser:       The Playwright browser instance (needed for generic scraper).
+        wd_locations:  Per-portal Workday location facets.
+
+    Returns:
+        A scraper instance ready to call .scrape(url).
+    """
+    if scraper_type == "generic":
+        return get_scraper(scraper_type, browser=browser)
+    elif scraper_type == "workday":
+        wd_cfg = config.get("workday", {})
+        facets = _get_facets_for_url(url, wd_locations)
+        return get_scraper(scraper_type, facets=facets, max_age_days=wd_cfg.get("max_age_days"))
+    elif scraper_type == "amazon":
+        amz_cfg = config.get("amazon", {})
+        return get_scraper(scraper_type, max_age_days=amz_cfg.get("max_age_days"))
+    else:
+        return get_scraper(scraper_type)
+
+
 def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: EmailNotifier,
               workday_locations: dict | None = None):
     """Run one full check cycle: scrape all portals, match new jobs, send digest.
@@ -164,19 +190,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
 
         logger.info("Checking [%s] %s", scraper_type, url)
         try:
-            # Create the appropriate scraper (generic needs the Playwright browser)
-            if scraper_type == "generic":
-                scraper = get_scraper(scraper_type, browser=_browser)
-            elif scraper_type == "workday":
-                wd_cfg = config.get("workday", {})
-                facets = _get_facets_for_url(url, wd_locations)
-                scraper = get_scraper(
-                    scraper_type,
-                    facets=facets,
-                    max_age_days=wd_cfg.get("max_age_days"),
-                )
-            else:
-                scraper = get_scraper(scraper_type)
+            scraper = _create_scraper(scraper_type, config, url, _browser, wd_locations)
 
             # Step 1: Scrape all jobs from this portal
             jobs = scraper.scrape(url)

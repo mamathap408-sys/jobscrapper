@@ -15,11 +15,13 @@ To add a new scraper type:
 
 from scrapers.workday import WorkdayScraper
 from scrapers.generic import GenericScraper
+from scrapers.amazon import AmazonScraper
 
 # Maps the label used in urls.txt → the scraper class to instantiate
 SCRAPER_REGISTRY: dict[str, type] = {
     "workday": WorkdayScraper,
     "generic": GenericScraper,
+    "amazon": AmazonScraper,
 }
 
 
