@@ -81,8 +81,8 @@ def test_matcher_with_mock_gateway():
         }
     }
 
-    # Mock httpx.Client
-    with patch("services.matcher.httpx.Client") as MockClient:
+    # Mock httpx.Client in genai_client where it's used
+    with patch("services.genai_client.httpx.Client") as MockClient:
         mock_client = MagicMock()
         MockClient.return_value = mock_client
 

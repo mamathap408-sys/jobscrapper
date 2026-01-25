@@ -234,6 +234,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
             if hasattr(scraper, "close"):
                 scraper.close()
 
+        except RuntimeError:
+            raise  # Fatal errors (e.g. GenAI retries exhausted) — stop the scraper
         except Exception as e:
             logger.error("Error processing %s: %s", url, e)
 

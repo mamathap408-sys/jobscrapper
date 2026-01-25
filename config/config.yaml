@@ -1,5 +1,5 @@
 profiles:
-  - title: "Software Developer"
+  - title: "Software Developer / Technical Support / Operations Support / Entry Level Roles"
     skills:
       - Java
       - Spring Boot
@@ -15,6 +15,13 @@ profiles:
       - Playwright
       - SQLite
       - Automation
+      - Troubleshooting
+      - SaaS Platforms
+      - API Debugging
+      - RCA (Root Cause Analysis)
+      - Ticketing Systems
+      - Customer Communication
+      - Documentation
     tools:
       - Git
       - IntelliJ IDEA
@@ -25,38 +32,16 @@ profiles:
       - Eclipse
       - Slack
       - Excel
-    experience_years: 1.5
-    location_preference: "Bangalore, India; Remote"
-    additional_criteria: |
-      Looking for Software Developer / Software Engineer roles (entry to mid-level).
-      Strong in Java, Python, GenAI and Spring Boot.
-      Experience with RCA, API debugging, and Technical Support.
-      Interested in backend, full-stack, or platform engineering teams.
-      Open to product-based companies and startups.
-
-  - title: "Technical Support Engineer"
-    skills:
-      - Troubleshooting
-      - SaaS Platforms
-      - API Debugging
-      - SQL
-      - RCA (Root Cause Analysis)
-      - Ticketing Systems
-      - Customer Communication
-      - Documentation
-    tools:
-      - Postman
-      - Slack
-      - Excel
       - JIRA
       - ServiceNow
     experience_years: 1.5
     location_preference: "Bangalore, India; Remote"
     additional_criteria: |
-      Looking for Technical Support / SaaS Support Engineer roles.
-      Experience at Amazon handling escalations, RCA, and API debugging.
-      Strong communication and troubleshooting skills.
-      Open to product-based companies with SaaS platforms.
+      Open to any role — SWE roles are preferred but support, operations, and data roles are welcome too.
+      Strong in Java, Python, GenAI and Spring Boot.
+      Experience with RCA, API debugging, and Technical Support.
+      Interested in backend, full-stack, platform engineering, technical support, or operations teams.
+      Open to product-based companies and startups.
       Not interested in pure call-center or L1-only support roles.
 
 scoring_instructions: |
@@ -77,7 +62,13 @@ scoring_instructions: |
   - SDE / Software Developer / Software Engineer / Backend / Full-Stack → 4 points
   - QA / SDET / Test Engineer / SWE-adjacent roles → 3 points
   - Customer Support / Technical Support / SaaS Support → 2 points
+  - Operations Support / Data Analyst / SPS Associate / Sales Operations / Associate  → 2 points
   - Unrelated roles (HR, Sales, Marketing, etc.) → 0 points
+
+  ## Low-Barrier Entry-Level Bonus
+  - If the job only requires a B.Tech/Bachelor's degree (any discipline), communication skills,
+    and basic tools (Excel, etc.) with no specialized domain expertise required → +5 points
+  - This applies to entry-level associate/support roles where the candidate clearly qualifies
 
   ## Location (bonus points)
   - Bangalore → +2
