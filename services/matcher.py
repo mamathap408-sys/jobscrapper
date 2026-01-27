@@ -136,19 +136,11 @@ class JobMatcher:
         )
 
         prompt = (
-            "You are a job matching assistant. The candidate has multiple profiles "
-            "representing different types of roles they are looking for. Score each "
-            "job posting against the BEST-matching profile. For each job, provide:\n"
-            "- A relevance score from 1 (terrible match) to 10 (perfect match)\n"
-            "- The name of the best-matching profile\n"
-            "- A brief reason (1-2 sentences)\n\n"
-            "## Candidate Profiles\n"
-            f"{self._profile_text}\n\n"
             f"{scoring_section}"
             "## Job Postings\n"
             f"{jobs_text}\n\n"
             "Respond ONLY with a JSON array (no markdown fences). Each element:\n"
-            '{"job_id": "...", "score": N, "matched_profile": "...", "reason": "..."}\n'
+            '{"job_id": "...", "score": N, "reason": "..."}\n'
             "Return one element per job, in the same order."
         )
 

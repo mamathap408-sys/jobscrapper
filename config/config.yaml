@@ -45,53 +45,62 @@ profiles:
       Not interested in pure call-center or L1-only support roles.
 
 scoring_instructions: |
-  Score each job by adding up points from the categories below. Match against the best-fitting profile.
+  You are an HR recruiter screening resumes for each job posting below.
+  You have one candidate. Decide: "Would I shortlist this person for an interview?"
 
-  ## Experience Required (max 5 points)
-  - 0 years or "entry-level" → 5 points
-  - 0-1 years → 5 points
-  - 0-2 years → 5 points
-  - 1 year → 4 points
-  - 1-2 years → 3 points
-  - 2 years → 1 points
-  - 2-3 years → 0 points
-  - 2-4 years → -0 point
-  - 3+ years → 1 point (score floor)
+  ## Candidate Resume
 
-  ## Role Type (max 4 points)
-  - SDE / Software Developer / Software Engineer / Backend / Full-Stack → 4 points
-  - QA / SDET / Test Engineer / SWE-adjacent roles → 3 points
-  - Customer Support / Technical Support / SaaS Support → 2 points
-  - Operations Support / Data Analyst / SPS Associate / Sales Operations / Associate  → 2 points
-  - Unrelated roles (HR, Sales, Marketing, etc.) → 0 points
+  Name: [Candidate]
+  Education: B.Tech (2022 batch)
+  Location: Bangalore | Open to remote
 
-  ## Low-Barrier Entry-Level Bonus
-  - If the job only requires a B.Tech/Bachelor's degree (any discipline), communication skills,
-    and basic tools (Excel, etc.) with no specialized domain expertise required → +5 points
-  - This applies to entry-level associate/support roles where the candidate clearly qualifies
+  Work Experience:
+    - Sr. Seller Partner Support Associate, Amazon (1.5 years)
+      RCA, API debugging, troubleshooting, escalation handling, ticketing systems (JIRA, ServiceNow)
 
-  ## Location (bonus points)
-  - Bangalore → +2
-  - Hyderabad → +1
-  - Pune → +0
-  - Remote / India-wide → +2
-  - Other locations → -1
+  Technical Skills: Java, Python, SQL, Spring Boot, React.js, Docker, Excel
+  Note: Self-taught developer — personal projects and side builds, no professional SWE role yet.
 
-  ## Skills Match (max 2 points)
-  - 3+ candidate skills mentioned in the job description → +2
-  - 1-2 candidate skills mentioned → +1
-  - 0 skills matched → 0
+  ## Shortlist Decision Guide
 
-  ## Position Level (penalty)
-  - Entry-level / Junior / L3 / L4 / SDE-1 → no penalty
-  - SDE-2 / Senior / L5 / SDE-3 → -2 points
-  - Staff / Principal / L6+ / Manager / Lead / Architect → 1 point (score floor, not a match)
+  For each job, pick the score that matches your gut call as a recruiter:
 
-  ## Batch / Graduation Year (penalty)
-  - If the job specifies "2024 batch only", "2025 graduates", or any batch requirement of 2024 or later → -2 points
-  - The candidate's passout year is 2022, so 2022/2023 batch requirements are fine (no penalty).
+  9 — "Calling them today"
+    Resume clearly fits. Examples:
+    • Entry-level SDE/SWE (0-1 yrs required) — has B.Tech + coding projects
+    • Support roles matching Amazon background (0-2 yrs): Tech Support, Customer Support,
+      SaaS Support, Seller/Merchant Support, Account Support
+    • Any role needing just a degree + communication + basic tools — obvious fit
 
-  Final score = Experience + Role Type + Location + Skills Match + Position Level penalty + Batch penalty (cap at 10, floor at 1).
+  7 — "Shortlisted, good candidate"
+    Strong on most requirements. Examples:
+    • QA / SDET (0-2 yrs) — has debugging and testing mindset from support role
+    • Associate / ops roles that specifically need a skill the candidate has (SQL, Excel, JIRA)
+
+  5 — "Maybe, depends who else applies"
+    Meets some requirements, gaps on others. Examples:
+    • Operations / Data Analyst / Sales Ops with domain-specific requirements
+    • Roles where candidate hits most boxes but misses one or two
+
+  3 — "Probably passing, but not a total mismatch"
+    Resume doesn't quite fit what the job asks for. Examples:
+    • SDE/SWE roles needing 2+ yrs professional SWE experience
+      (has coding skills but no SWE job title — most recruiters would skip)
+    • Roles that are a stretch on multiple requirements
+
+  2 — "No, moving to reject pile"
+    • Senior / L5+ / SDE roles needing 3+ yrs professional SWE experience
+    • Any role requiring 4+ years in a specific field
+
+  1 — "Not qualified"
+    • Specialized domains: CA, nurse, lawyer, licensed engineer, etc.
+    • 5+ years required in a specific field
+
+  ## Location Adjustment
+  After picking a score: Bangalore or Remote → no change. Other Indian cities → subtract 1.
+
+  ## Response Format
+  Return the final score (1-10) and a 1-sentence recruiter note explaining your shortlist decision.
 
 genai:
   login_url: "xxxx"
@@ -101,7 +110,7 @@ genai:
   password: "xxxx"              # Env var reference (base64-encoded)
   model: "claude-opus-4-6"
   application_name: "job-posting-watcher"
-  match_threshold: 6                         # 1-10 score, only notify if >= this
+  match_threshold: 3                         # 1-10 score, only notify if >= this
 
 email:
   sender_email: "xxxx"
