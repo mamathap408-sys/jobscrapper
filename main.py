@@ -220,7 +220,9 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     else:
                         filtered.append((job, score, reason))
 
-                # Step 6: Send per-company email immediately
+                # Step 6: Sort by score descending and send per-company email
+                matches.sort(key=lambda x: x[1], reverse=True)
+                filtered.sort(key=lambda x: x[1], reverse=True)
                 if matches or filtered:
                     company = new_jobs[0].company
                     notifier.send_digest(matches, filtered=filtered, company=company)
