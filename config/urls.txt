@@ -7,12 +7,14 @@ workday | https://dell.wd1.myworkdayjobs.com/en-US/External
 workday | https://target.wd5.myworkdayjobs.com/en-US/targetcareers
 workday | https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced
 workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
-workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
 workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
 workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
 
+amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
+
+generic | https://corporate.visa.com/en/jobs/
+
 # --- NOT supported (no Workday JSON API) ---
-# Amazon          | https://www.amazon.jobs/content/en-gb/locations/india/bangalore (custom platform)
 # Google          | https://www.google.com/about/careers/applications/jobs/results (custom platform)
 # Goldman Sachs   | https://higher.gs.com/results?page=1&sort=RELEVANCE (custom platform)
 # Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)
