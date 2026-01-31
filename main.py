@@ -74,29 +74,31 @@ def _load_workday_locations() -> dict:
         return yaml.safe_load(f) or {}
 
 
-def _get_facets_for_url(url: str, locations: dict) -> dict:
+def _get_facets_for_url(url: str, locations: dict) -> list[dict]:
     """Look up appliedFacets for a Workday portal URL from the locations config.
 
-    The YAML stores {facetParameter: [{id, descriptor}, ...]} per portal.
-    We just extract the IDs grouped by parameter — ready for the Workday API.
+    Returns a list of single-facet dicts so each facet type can be queried
+    separately (avoids Workday's AND logic between different facet types).
 
     Args:
         url:       The portal URL from urls.txt.
         locations: The loaded workday_locations.yaml data.
 
     Returns:
-        A dict suitable for Workday API's appliedFacets parameter, or empty dict.
+        A list of dicts, each with one facet type. e.g.:
+        [{"locationCountry": ["id1"]}, {"locations": ["id2", "id3"]}]
+        Returns empty list if no facets configured.
     """
     parsed = urlparse(url)
     key = f"{parsed.hostname}{parsed.path.rstrip('/')}"
     portal = locations.get(key)
     if not portal:
-        return {}
+        return []
 
-    return {
-        param: [entry["id"] for entry in entries]
+    return [
+        {param: [entry["id"] for entry in entries]}
         for param, entries in portal.items()
-    }
+    ]
 
 
 def _signal_handler(sig, frame):
@@ -155,8 +157,8 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
         return get_scraper(scraper_type, browser=browser)
     elif scraper_type == "workday":
         wd_cfg = config.get("workday", {})
-        facets = _get_facets_for_url(url, wd_locations)
-        return get_scraper(scraper_type, facets=facets, max_age_days=wd_cfg.get("max_age_days"))
+        facet_list = _get_facets_for_url(url, wd_locations)
+        return get_scraper(scraper_type, facet_list=facet_list, max_age_days=wd_cfg.get("max_age_days"))
     elif scraper_type == "amazon":
         amz_cfg = config.get("amazon", {})
         return get_scraper(scraper_type, max_age_days=amz_cfg.get("max_age_days"))

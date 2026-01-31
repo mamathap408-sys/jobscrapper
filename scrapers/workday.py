@@ -97,16 +97,17 @@ def _build_api_base(url: str) -> str:
 class WorkdayScraper(BaseScraper):
     """Scrapes Workday career portals via their JSON API (no browser needed)."""
 
-    def __init__(self, facets: dict | None = None, max_age_days: int | None = None, **kwargs):
+    def __init__(self, facet_list: list[dict] | None = None, max_age_days: int | None = None, **kwargs):
         """Initialize with optional API facet filters and age limit.
 
         Args:
-            facets:       Optional dict of Workday facet filters to narrow results.
-                          e.g., {"locationCountry": ["c4f78be1a8f14da0ab49ce1162348a5e"]}
+            facet_list:   List of single-facet dicts to query separately, then merge.
+                          e.g., [{"locationCountry": ["id1"]}, {"locations": ["id2"]}]
+                          Each dict is queried as a separate API call to avoid AND logic.
             max_age_days: Only include jobs posted within this many days.
                           e.g., 10 = skip anything older than 10 days. None = no limit.
         """
-        self._facets = facets or {}
+        self._facet_list = facet_list or [{}]
         self._max_age_days = max_age_days
         # httpx client reused across API calls for connection pooling
         self._client = httpx.Client(
@@ -123,9 +124,8 @@ class WorkdayScraper(BaseScraper):
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all job postings from a Workday portal.
 
-        Paginates through the API until all jobs are fetched or an error occurs.
-        Note: descriptions are NOT fetched here (too many API calls).
-              Call enrich_descriptions() separately for new jobs only.
+        Queries each facet type separately to avoid Workday's AND logic,
+        then merges and deduplicates results by job_id (externalPath).
 
         Args:
             url: The Workday career portal URL.
@@ -138,22 +138,15 @@ class WorkdayScraper(BaseScraper):
         company, _ = _parse_workday_url(url)
         logger.info("Scraping Workday portal: %s (API: %s)", url, api_base)
 
+        seen_ids = set()
         all_jobs = []
-        offset = 0
 
-        # First call to get total count + facet names for logging
-        jobs_batch, total, facets_data = self._fetch_job_list(api_base, company, url, offset)
-        all_jobs.extend(jobs_batch)
-        offset += _PAGE_SIZE
-
-        # Resolve applied facet IDs to human-readable names for logging
-        region_label = self._resolve_facet_names(facets_data)
-
-        # Fetch remaining pages based on total from API
-        while offset < total:
-            jobs_batch, _, _ = self._fetch_job_list(api_base, company, url, offset)
-            all_jobs.extend(jobs_batch)
-            offset += _PAGE_SIZE
+        for facets in self._facet_list:
+            jobs = self._scrape_one_facet(api_base, company, url, facets)
+            for job in jobs:
+                if job.job_id not in seen_ids:
+                    seen_ids.add(job.job_id)
+                    all_jobs.append(job)
 
         # Filter out old jobs
         before_filter = len(all_jobs)
@@ -164,11 +157,32 @@ class WorkdayScraper(BaseScraper):
             ]
             filtered_out = before_filter - len(all_jobs)
             logger.info(
-                "%s: %d jobs in region, %d within %d days, %d older (skipped)",
-                region_label, total, len(all_jobs), self._max_age_days, filtered_out,
+                "%s: %d total unique jobs, %d within %d days, %d older (skipped)",
+                company, before_filter, len(all_jobs), self._max_age_days, filtered_out,
             )
         else:
-            logger.info("%s: %d jobs in region, fetched all %d", region_label, total, len(all_jobs))
+            logger.info("%s: %d total unique jobs", company, len(all_jobs))
+        return all_jobs
+
+    def _scrape_one_facet(
+        self, api_base: str, company: str, portal_url: str, facets: dict
+    ) -> list[JobPosting]:
+        """Scrape all pages for a single facet filter set."""
+        self._facets = facets
+        offset = 0
+
+        jobs_batch, total, facets_data = self._fetch_job_list(api_base, company, portal_url, offset)
+        all_jobs = list(jobs_batch)
+        offset += _PAGE_SIZE
+
+        region_label = self._resolve_facet_names(facets_data)
+        logger.info("  Facet query [%s]: %d jobs", region_label, total)
+
+        while offset < total:
+            jobs_batch, _, _ = self._fetch_job_list(api_base, company, portal_url, offset)
+            all_jobs.extend(jobs_batch)
+            offset += _PAGE_SIZE
+
         return all_jobs
 
     def _resolve_facet_names(self, facets_data: list[dict]) -> str:
