@@ -45,62 +45,55 @@ profiles:
       Not interested in pure call-center or L1-only support roles.
 
 scoring_instructions: |
-  You are an HR recruiter screening resumes for each job posting below.
-  You have one candidate. Decide: "Would I shortlist this person for an interview?"
+  Follow these steps IN ORDER for each job. Do not skip steps or freelance.
 
   ## Candidate Resume
 
-  Name: [Candidate]
   Education: B.Tech (2022 batch)
   Location: Bangalore | Open to remote
-
   Work Experience:
     - Sr. Seller Partner Support Associate, Amazon (1.5 years)
       RCA, API debugging, troubleshooting, escalation handling, ticketing systems (JIRA, ServiceNow)
-
   Technical Skills: Java, Python, SQL, Spring Boot, React.js, Docker, Excel
-  Note: Self-taught developer — personal projects and side builds, no professional SWE role yet.
+  Note: Self-taught developer with personal projects, no professional SWE role yet.
 
-  ## Shortlist Decision Guide
+  ## Step 1: DISQUALIFY CHECK (if any match → assign score and STOP)
+  - Specialized domain candidate cannot do (CA, nurse, lawyer, licensed engineer) → score 1
+  - Requires 5+ years in a specific field → score 1
+  - Requires 4+ years in any field → score 2
+  - Senior / L5+ / 3+ years required SWE role → score 2
 
-  For each job, pick the score that matches your gut call as a recruiter:
+  ## Step 2: EXTRACT EXPERIENCE REQUIREMENT
+  Find the exact years of experience the job posting states.
+  If none mentioned anywhere in the posting → treat as 0 years.
 
-  9 — "Calling them today"
-    Resume clearly fits. Examples:
-    • Entry-level SDE/SWE (0-1 yrs required) — has B.Tech + coding projects
-    • Support roles matching Amazon background (0-2 yrs): Tech Support, Customer Support,
-      SaaS Support, Seller/Merchant Support, Account Support
-    • Any role needing just a degree + communication + basic tools — obvious fit
+  ## Step 3: CLASSIFY ROLE TYPE (pick the FIRST match)
+  A. SDE / SWE / Software Engineer / Backend / Full-Stack / Engineer (software)
+  B. QA / SDET / Test Engineer
+  C. Support (Tech Support, Customer Support, SaaS Support, Seller Support, Account Support)
+  D. Operations / Data Analyst / Associate / Sales Ops
+  E. Any other role
 
-  7 — "Shortlisted, good candidate"
-    Strong on most requirements. Examples:
-    • QA / SDET (0-2 yrs) — has debugging and testing mindset from support role
-    • Associate / ops roles that specifically need a skill the candidate has (SQL, Excel, JIRA)
+  ## Step 4: LOOK UP BASE SCORE
 
-  5 — "Maybe, depends who else applies"
-    Meets some requirements, gaps on others. Examples:
-    • Operations / Data Analyst / Sales Ops with domain-specific requirements
-    • Roles where candidate hits most boxes but misses one or two
+  Experience →    0-1 yrs     1-2 yrs     2+ yrs
+  ─────────────────────────────────────────────────
+  A (SDE)         9           5           3
+  B (QA)          9           7           5
+  C (Support)     9           9           7
+  D (Ops)         9           7           5
+  E (Other)       7           5           3
 
-  3 — "Probably passing, but not a total mismatch"
-    Resume doesn't quite fit what the job asks for. Examples:
-    • SDE/SWE roles needing 2+ yrs professional SWE experience
-      (has coding skills but no SWE job title — most recruiters would skip)
-    • Roles that are a stretch on multiple requirements
+  ## Step 5: ADJUSTMENTS (apply only these, max -1 each)
+  - Location: not Bangalore and not Remote → subtract 1
+  - Skill mismatch: job's required tech stack has no overlap with candidate's skills → subtract 1
 
-  2 — "No, moving to reject pile"
-    • Senior / L5+ / SDE roles needing 3+ yrs professional SWE experience
-    • Any role requiring 4+ years in a specific field
-
-  1 — "Not qualified"
-    • Specialized domains: CA, nurse, lawyer, licensed engineer, etc.
-    • 5+ years required in a specific field
-
-  ## Location Adjustment
-  After picking a score: Bangalore or Remote → no change. Other Indian cities → subtract 1.
+  No other adjustments allowed. Do not invent penalties.
 
   ## Response Format
-  Return the final score (1-10) and a 1-sentence recruiter note explaining your shortlist decision.
+  In your reason, state: (1) the experience requirement you found (or "no experience mentioned"),
+  (2) the role type you picked (A/B/C/D/E), (3) any adjustments applied.
+  Return the final score (1-10) and a 1-sentence summary.
 
 genai:
   login_url: "xxxx"

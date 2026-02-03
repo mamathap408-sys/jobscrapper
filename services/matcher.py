@@ -68,7 +68,13 @@ def _build_jobs_text(jobs: list[JobPosting]) -> str:
     """
     parts = []
     for i, job in enumerate(jobs, 1):
-        desc_preview = job.description[:1500] if job.description else "(no description available)"
+        desc = job.description if job.description else "(no description available)"
+        if len(desc) > 10000:
+            raise ValueError(
+                f"Job description too long ({len(desc)} chars) for job '{job.title}' "
+                f"(ID: {job.job_id}). First 200 chars: {desc[:200]}"
+            )
+        desc_preview = desc
         parts.append(
             f"--- Job {i} ---\n"
             f"ID: {job.job_id}\n"
@@ -139,19 +145,25 @@ class JobMatcher:
             f"{scoring_section}"
             "## Job Postings\n"
             f"{jobs_text}\n\n"
-            "Respond ONLY with a JSON array (no markdown fences). Each element:\n"
-            '{"job_id": "...", "score": N, "reason": "..."}\n'
-            "Return one element per job, in the same order."
+            "You may think through the steps, but your FINAL output must be a single JSON array "
+            "containing ALL jobs (no markdown fences). I will only parse the last JSON array in your response.\n"
+            'Each element: {"job_id": "...", "score": N, "reason": "..."}\n'
+            "Return one element per job, in the same order. Do not omit any jobs from the final array."
         )
 
         content = self._client.chat(prompt)
 
-        # Some models wrap JSON in ```json ... ``` fences despite instructions
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1]
-            content = content.rsplit("```", 1)[0]
+        # Extract the last JSON array from the response (LLM may think out loud before it)
+        last_start = content.rfind("[")
+        last_end = content.rfind("]")
+        if last_start != -1 and last_end != -1:
+            content = content[last_start:last_end + 1]
 
-        scores = json.loads(content)
+        try:
+            scores = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse LLM response as JSON: %s\nRaw content:\n%s", e, content)
+            raise
 
         results = []
         for job, score_entry in zip(jobs, scores):
