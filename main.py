@@ -182,9 +182,14 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     """
     urls = load_urls()  # Re-read urls.txt each cycle (in case you add new portals)
     delay = config["schedule"].get("delay_between_sites_seconds", 5)
+    digest_mode = config.get("email", {}).get("digest_mode", "per_company")
     wd_locations = workday_locations or {}
     total_matches = 0
     total_filtered = 0
+
+    # For aggregated mode: accumulate across all portals, send once at the end
+    all_matches = []
+    all_filtered = []
 
     for scraper_type, url in urls:
         if _shutdown:
@@ -222,14 +227,21 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     else:
                         filtered.append((job, score, reason))
 
-                # Step 6: Sort by score descending and send per-company email
-                matches.sort(key=lambda x: x[1], reverse=True)
-                filtered.sort(key=lambda x: x[1], reverse=True)
-                if matches or filtered:
-                    company = new_jobs[0].company
-                    notifier.send_digest(matches, filtered=filtered, company=company)
-                    for job, _, _ in matches:
-                        db.mark_notified(job.job_id)
+                # Step 6: Sort by score descending, then by most recent posted_date
+                matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+                filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+
+                if digest_mode == "per_company":
+                    # Send one email per company immediately
+                    if matches or filtered:
+                        company = new_jobs[0].company
+                        notifier.send_digest(matches, filtered=filtered, company=company)
+                        for job, _, _ in matches:
+                            db.mark_notified(job.job_id)
+                else:
+                    # Accumulate for aggregated email
+                    all_matches.extend(matches)
+                    all_filtered.extend(filtered)
 
                 total_matches += len(matches)
                 total_filtered += len(filtered)
@@ -246,6 +258,14 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         # Be respectful: wait between portal checks to avoid getting blocked
         if not _shutdown:
             time.sleep(delay)
+
+    # Aggregated mode: send one combined email after all portals are processed
+    if digest_mode == "aggregated" and (all_matches or all_filtered):
+        all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+        all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+        notifier.send_digest(all_matches, filtered=all_filtered)
+        for job, _, _ in all_matches:
+            db.mark_notified(job.job_id)
 
     logger.info(
         "Cycle complete: %d portals checked, %d matches, %d filtered",
