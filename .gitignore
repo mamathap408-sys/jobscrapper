@@ -1,8 +1,5 @@
 /.idea
 __pycache__/
 *.pyc
-data/credentials.json
-data/token.json
-data/jobs.db
-config/base_resume.tex
+data/
 certs/
