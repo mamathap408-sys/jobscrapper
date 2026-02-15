@@ -12,7 +12,7 @@ workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
 
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 
-generic | https://corporate.visa.com/en/jobs/
+visa | https://corporate.visa.com/en/jobs/
 
 # --- NOT supported (no Workday JSON API) ---
 # Google          | https://www.google.com/about/careers/applications/jobs/results (custom platform)
