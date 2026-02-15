@@ -4,14 +4,14 @@ main.py — Job Posting Watcher Entry Point
 This is the main script that ties everything together and runs the watcher loop.
 
 What it does:
-  1. Loads configuration (config.yaml + urls.txt)
+  1. Loads configuration (config.yaml + urls.yaml)
   2. Initializes the database (SQLite), matcher (GenAI), notifier (Gmail), and browser (Playwright)
   3. Runs the first check cycle immediately
   4. Then repeats every N minutes (configured in config.yaml)
   5. On Ctrl+C or kill signal, shuts down gracefully
 
 Each cycle:
-  - For each portal URL in urls.txt:
+  - For each portal URL in urls.yaml:
       a. Pick the right scraper (Workday API or generic Playwright)
       b. Scrape all job postings from that portal
       c. Check which jobs are NEW (not seen in SQLite database)
@@ -81,7 +81,7 @@ def _get_facets_for_url(url: str, locations: dict) -> list[dict]:
     separately (avoids Workday's AND logic between different facet types).
 
     Args:
-        url:       The portal URL from urls.txt.
+        url:       The portal URL from urls.yaml.
         locations: The loaded workday_locations.yaml data.
 
     Returns:
@@ -118,7 +118,7 @@ def _signal_handler(sig, frame):
 def _init_playwright():
     """Launch a headless Chromium browser for the generic scraper.
 
-    Playwright is only needed for non-Workday sites (type "generic" in urls.txt).
+    Playwright is only needed for non-Workday sites (type "generic" in urls.yaml).
     If Playwright is not installed or fails to launch, the generic scraper is
     simply disabled — Workday scraper still works fine.
 
@@ -144,7 +144,7 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     """Create the appropriate scraper instance for a given URL.
 
     Args:
-        scraper_type:  The scraper type string from urls.txt (e.g. "workday", "generic").
+        scraper_type:  The scraper type string from urls.yaml (e.g. "workday", "generic").
         config:        The loaded config.yaml dictionary.
         url:           The portal URL being scraped.
         browser:       The Playwright browser instance (needed for generic scraper).
@@ -162,6 +162,9 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     elif scraper_type == "amazon":
         amz_cfg = config.get("amazon", {})
         return get_scraper(scraper_type, max_age_days=amz_cfg.get("max_age_days"))
+    elif scraper_type == "visa":
+        visa_cfg = config.get("visa", {})
+        return get_scraper(scraper_type, max_age_days=visa_cfg.get("max_age_days"))
     else:
         return get_scraper(scraper_type)
 
@@ -180,7 +183,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         notifier:           The email notifier for sending digests.
         workday_locations:  Per-portal facets from workday_locations.yaml.
     """
-    urls = load_urls()  # Re-read urls.txt each cycle (in case you add new portals)
+    urls = load_urls()  # Re-read urls.yaml each cycle (in case you add new portals)
     delay = config["schedule"].get("delay_between_sites_seconds", 5)
     digest_mode = config.get("email", {}).get("digest_mode", "per_company")
     wd_locations = workday_locations or {}

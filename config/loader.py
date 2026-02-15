@@ -1,7 +1,7 @@
 """
 config.py — Configuration Loader
 =================================
-Loads settings from config.yaml and portal URLs from urls.txt.
+Loads settings from config.yaml and portal URLs from urls.yaml.
 
 How it works:
   1. Reads config.yaml using PyYAML
@@ -15,7 +15,7 @@ config.yaml contains:
   - email: sender/recipient Gmail addresses
   - schedule: how often to check and delay between sites
 
-urls.txt format:
+urls.yaml format:
   Each line is: scraper_type | url
   Example: workday | https://company1.wd5.myworkdayjobs.com/en-US/External
   Lines starting with # are ignored (comments)
@@ -31,7 +31,7 @@ from scrapers.base import JobProfile
 
 # Paths are relative to this file's directory (the project root)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-URLS_PATH = Path(__file__).parent / "urls.txt"
+URLS_PATH = Path(__file__).parent / "urls.yaml"
 
 # Regex to match ${VAR_NAME} patterns in config values
 _ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)}")
@@ -95,7 +95,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 
 
 def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:
-    """Load urls.txt and parse each line into (scraper_type, url) pairs.
+    """Load urls.yaml and parse each line into (scraper_type, url) pairs.
 
     Format per line: "scraper_type | url"
     Blank lines and lines starting with # are skipped.

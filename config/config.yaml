@@ -122,3 +122,6 @@ workday:
 
 amazon:
   max_age_days: 2
+
+visa:
+  max_age_days: 2

@@ -13,7 +13,7 @@ How it works:
 
 Approach:
   1. Parse the URL's query params — user controls filters (country, location, radius)
-     directly in urls.txt
+     directly in urls.yaml
   2. Paginate via `offset` param, using `result_limit` from URL params (default 100)
   3. Build JobPosting per job with inline descriptions (no separate detail fetch needed)
   4. Optionally filter by age using `posted_date` field

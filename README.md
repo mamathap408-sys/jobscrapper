@@ -1,11 +1,11 @@
 # Job Posting Watcher
 
-A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, and generic sites via Playwright), scores postings against your profile using an LLM, deduplicates via SQLite, and sends HTML digest emails through Gmail.
+A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Visa Careers, and generic sites via Playwright), scores postings against your profile using an LLM, deduplicates via SQLite, and sends HTML digest emails through Gmail.
 
 ## How It Works
 
 1. Reads your profile, skills, and scoring rubric from `config/config.yaml`
-2. Scrapes job portals listed in `config/urls.txt` on a schedule
+2. Scrapes job portals listed in `config/urls.yaml` on a schedule
 3. Filters out already-seen jobs using a local SQLite database
 4. Sends new jobs to an LLM (via a GenAI gateway) to score relevance (1-10)
 5. Emails you an HTML digest of matching jobs through Gmail API
@@ -16,6 +16,7 @@ A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, and 
 |------|-------------|-----------------|
 | **Workday** | Direct HTTP POST to Workday's hidden JSON API. Paginates in chunks of 20. | No |
 | **Amazon** | GET requests to Amazon Jobs' public JSON search API. Full descriptions inline. | No |
+| **Visa** | Direct HTTP POST to Visa's backend jobs API. Full descriptions inline. | No |
 | **Generic** | Playwright headless Chromium — scrolls page and finds job links via CSS selectors. | Yes |
 
 ## Prerequisites
@@ -92,6 +93,9 @@ workday:
 
 amazon:
   max_age_days: 2
+
+visa:
+  max_age_days: 3
 ```
 
 **Key fields:**
@@ -101,7 +105,7 @@ amazon:
 - **`match_threshold`**: Minimum LLM score (1-10) to include a job in the email. Lower = more jobs.
 - **`scoring_instructions`**: The full prompt sent to the LLM with your resume, disqualification rules, and scoring rubric.
 
-### 4. Configure `config/urls.txt`
+### 4. Configure `config/urls.yaml`
 
 Add career portals to monitor, one per line in the format `scraper_type | URL`:
 
@@ -111,6 +115,9 @@ workday | https://company.wd5.myworkdayjobs.com/en-US/External
 
 # Amazon Jobs (filters via query params)
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&sort=recent&result_limit=100
+
+# Visa Jobs (Bangalore only)
+visa | https://corporate.visa.com/en/jobs/?cities=Bangalore
 
 # Generic sites (requires Playwright)
 generic | https://careers.example.com/jobs/
@@ -160,15 +167,16 @@ jobscrapper/
 ├── main.py                  # Entry point — scheduler loop
 ├── config/
 │   ├── __init__.py
-│   ├── loader.py            # Reads config.yaml and urls.txt
+│   ├── loader.py            # Reads config.yaml and urls.yaml
 │   ├── config.yaml          # Your profiles, credentials, scoring rules
-│   ├── urls.txt             # Career portal URLs to monitor
+│   ├── urls.yaml            # Career portal URLs to monitor
 │   └── workday_locations.yaml  # (generated) Location facets for Workday
 ├── scrapers/
 │   ├── __init__.py          # Scraper registry and factory
 │   ├── base.py              # JobPosting dataclass and BaseScraper interface
 │   ├── workday.py           # Workday JSON API scraper
 │   ├── amazon.py            # Amazon Jobs JSON API scraper
+│   ├── visa.py              # Visa Careers backend API scraper
 │   └── generic.py           # Playwright-based fallback scraper
 ├── services/
 │   ├── db.py                # SQLite deduplication store
@@ -195,7 +203,7 @@ jobscrapper/
    from scrapers.greenhouse import GreenhouseScraper
    SCRAPER_REGISTRY["greenhouse"] = GreenhouseScraper
    ```
-4. Add URLs to `config/urls.txt`:
+4. Add URLs to `config/urls.yaml`:
    ```
    greenhouse | https://boards.greenhouse.io/company
    ```
@@ -218,4 +226,4 @@ pytest tests/test_matcher.py
 - SSL verification is disabled in HTTP clients (`verify=False`) to work behind corporate HTTPS-intercepting proxies (e.g., Zscaler). Remove this if you're not behind such a proxy.
 - Job descriptions are lazy-fetched: only new (unseen) jobs get enriched, saving API calls.
 - The GenAI client includes exponential backoff retry logic (up to 10 retries) and automatic token refresh on 401.
-- `config/urls.txt` is re-read every cycle — add or remove URLs without restarting the app.
+- `config/urls.yaml` is re-read every cycle — add or remove URLs without restarting the app.

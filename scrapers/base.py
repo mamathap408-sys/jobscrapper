@@ -68,7 +68,7 @@ class BaseScraper:
       2. Create a class that inherits from BaseScraper
       3. Implement the scrape() method
       4. Register it in scrapers/__init__.py SCRAPER_REGISTRY
-      5. Use the new type label in urls.txt (e.g., "greenhouse | https://...")
+      5. Use the new type label in urls.yaml (e.g., "greenhouse | https://...")
     """
 
     def scrape(self, url: str) -> list[JobPosting]:

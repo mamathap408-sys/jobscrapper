@@ -183,7 +183,7 @@ def main():
     workday_urls = [(t, u) for t, u in urls if t == "workday"]
 
     if not workday_urls:
-        logger.warning("No workday URLs found in urls.txt")
+        logger.warning("No workday URLs found in urls.yaml")
         return
 
     logger.info("Discovering location facets for %d Workday portals...", len(workday_urls))
