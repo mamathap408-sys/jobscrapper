@@ -205,7 +205,9 @@ class EmailNotifier:
         """
         email_cfg = config["email"]
         self._sender = email_cfg["sender_email"]
-        self._recipient = email_cfg["recipient_email"]
+        # Support comma-separated recipients, e.g. "a@x.com, b@x.com"
+        raw_recipient = email_cfg["recipient_email"]
+        self._recipients = [r.strip() for r in raw_recipient.split(",") if r.strip()]
         self._service = None  # Lazily initialized on first send
 
     def _ensure_service(self):
@@ -294,7 +296,7 @@ class EmailNotifier:
             msg["Subject"] = f"[Low-Priority] {label} — {len(filtered or [])} filtered job(s), no strong matches — {now_str}"
 
         msg["From"] = self._sender
-        msg["To"] = self._recipient
+        msg["To"] = ", ".join(self._recipients)
 
         # Plain text version (for email clients that don't render HTML)
         heading = f"{company} — Job Match Digest" if company else "Job Match Digest"
@@ -321,7 +323,7 @@ class EmailNotifier:
                 body={"raw": raw}
             ).execute()
             logger.info("Digest email sent to %s (%d matches) — message id: %s",
-                        self._recipient, len(matches), result.get("id"))
+                        ", ".join(self._recipients), len(matches), result.get("id"))
         except Exception as e:
             logger.error("Failed to send email via Gmail API: %s", e)
             raise
