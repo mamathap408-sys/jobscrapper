@@ -10,6 +10,53 @@ workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
 workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
 workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
 
+# ── India/Bangalore Workday portals — API-verified 2026-04-19 ──
+
+# Tech (192-708 India jobs)
+workday | https://cisco.wd5.myworkdayjobs.com/en-US/Cisco_Careers
+workday | https://salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site
+workday | https://hpe.wd5.myworkdayjobs.com/en-US/Jobsathpe
+workday | https://redhat.wd5.myworkdayjobs.com/en-US/Jobs
+workday | https://broadcom.wd1.myworkdayjobs.com/en-US/External_Career
+workday | https://tibco.wd5.myworkdayjobs.com/en-US/Cloud_Software_Group
+workday | https://paypal.wd1.myworkdayjobs.com/en-US/jobs
+workday | https://snapchat.wd1.myworkdayjobs.com/snap
+
+# Semiconductors (121-238 India jobs)
+workday | https://micron.wd1.myworkdayjobs.com/External
+workday | https://nxp.wd3.myworkdayjobs.com/en-US/careers
+workday | https://analogdevices.wd1.myworkdayjobs.com/External
+
+# Financial Services (3-380 India jobs)
+workday | https://statestreet.wd1.myworkdayjobs.com/Global
+workday | https://wf.wd1.myworkdayjobs.com/WellsFargoJobs
+workday | https://pwc.wd3.myworkdayjobs.com/en-US/Global_Experienced_Careers
+workday | https://ms.wd5.myworkdayjobs.com/External
+workday | https://db.wd3.myworkdayjobs.com/DBWebsite
+workday | https://blackrock.wd1.myworkdayjobs.com/BlackRock_Professional
+workday | https://citi.wd5.myworkdayjobs.com/2
+workday | https://barclays.wd3.myworkdayjobs.com/External_Career_Site_Barclays
+workday | https://ghr.wd1.myworkdayjobs.com/lateral-apac
+workday | https://fmr.wd1.myworkdayjobs.com/FidelityCareers
+workday | https://capitalone.wd12.myworkdayjobs.com/Capital_One
+workday | https://cmegroup.wd1.myworkdayjobs.com/en-US/cme_careers
+
+# Industrial / Healthcare (16-708 India jobs)
+workday | https://philips.wd3.myworkdayjobs.com/en-US/jobs-and-careers
+workday | https://jj.wd5.myworkdayjobs.com/en-US/JJ
+workday | https://rockwellautomation.wd1.myworkdayjobs.com/en-US/External_Rockwell_Automation
+workday | https://astrazeneca.wd3.myworkdayjobs.com/broadbean_external
+workday | https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS
+workday | https://geaerospace.wd5.myworkdayjobs.com/en-US/GE_ExternalSite
+workday | https://gehc.wd5.myworkdayjobs.com/en-US/GEHC_ExternalSite
+workday | https://alcon.wd5.myworkdayjobs.com/en-US/careers_alcon
+
+# Consumer / Media (16-48 India jobs)
+workday | https://shell.wd3.myworkdayjobs.com/en-US/ShellCareers
+workday | https://warnerbros.wd5.myworkdayjobs.com/global
+workday | https://unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals
+workday | https://fox.wd1.myworkdayjobs.com/Domestic
+
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 
 visa | https://corporate.visa.com/en/jobs/
@@ -28,3 +75,23 @@ visa | https://corporate.visa.com/en/jobs/
 # Myntra          | https://jobs.myntra.com/home (custom)
 # Zepto           | https://zepto.talentrecruit.com/career-page (TalentRecruit)
 # Infosys         | https://career.infosys.com/jobs (custom)
+# Netflix         | https://jobs.netflix.com/ (Greenhouse)
+# ServiceNow      | https://careers.smartrecruiters.com/servicenow (SmartRecruiters)
+# Uber            | https://www.uber.com/us/en/careers/ (custom)
+# Deloitte India  | https://jobsindia.deloitte.com/ (custom)
+# EY              | https://careers.ey.com/ (SuccessFactors)
+# Honeywell       | Oracle Cloud HCM
+# HSBC            | https://apply.careers.hsbc.com/ (Eightfold)
+# AmEx            | https://axp.taleo.net/careersection/ (Taleo)
+# Atlassian       | https://www.atlassian.com/company/careers (Beamery)
+# Bosch           | https://careers.smartrecruiters.com/BoschGroup (SmartRecruiters)
+# Siemens         | https://jobs.siemens.com/ (custom)
+# T. Rowe Price   | https://troweprice.wd5.myworkdayjobs.com/TRowePrice (Workday, 0 India jobs)
+# Std Chartered   | https://peopleplus.wd3.myworkdayjobs.com/SCB_Careers (Workday, 0 India jobs)
+
+# --- Workday portals with India jobs but NOT in Bangalore (Pune/Gurgaon/Mumbai/Chennai) ---
+#workday | https://mastercard.wd1.myworkdayjobs.com/en-US/CorporateCareers  # 249 India jobs (Pune, Gurgaon)
+#workday | https://flextronics.wd1.myworkdayjobs.com/en-US/Careers          # 708 India jobs (Chennai, Pune)
+#workday | https://ghr.wd1.myworkdayjobs.com/lateral-ba_continuum           # 71 India jobs (Mumbai, Hyderabad) — BofA India
+#workday | https://coke.wd1.myworkdayjobs.com/en-US/coca-cola-careers       # 48 India jobs (Gurgaon, Mumbai)
+#workday | https://pg.wd5.myworkdayjobs.com/en-US/1000                      # 25 India jobs (Mumbai, Hyderabad)

@@ -78,8 +78,8 @@ scoring_instructions: |
 
   Experience →    0-1 yrs     1-2 yrs     2+ yrs
   ─────────────────────────────────────────────────
-  A (SDE)         9           5           3
-  B (QA)          9           7           5
+  A (SDE)         9           6           3
+  B (QA)          9           5           3
   C (Support)     9           9           7
   D (Ops)         9           7           5
   E (Other)       7           5           3
