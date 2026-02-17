@@ -246,6 +246,19 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     all_matches.extend(matches)
                     all_filtered.extend(filtered)
 
+                    # Flush early if accumulated matches hit the threshold
+                    agg_threshold = config.get("email", {}).get("aggregated_threshold", 0)
+                    if agg_threshold > 0 and len(all_matches) >= agg_threshold:
+                        logger.info("Aggregated threshold reached (%d matches >= %d) — sending early digest",
+                                    len(all_matches), agg_threshold)
+                        all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+                        all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+                        notifier.send_digest(all_matches, filtered=all_filtered)
+                        for job, _, _ in all_matches:
+                            db.mark_notified(job.job_id)
+                        all_matches.clear()
+                        all_filtered.clear()
+
                 total_matches += len(matches)
                 total_filtered += len(filtered)
 

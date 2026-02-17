@@ -109,6 +109,7 @@ email:
   sender_email: "xxxx"
   recipient_email: "xxxx"
   digest_mode: "aggregated"  # "per_company" = one email per site, "aggregated" = single email after all sites
+  aggregated_threshold: 10   # in aggregated mode, flush email when matches reach this count (0 = send only at end)
 
 schedule:
   interval_minutes: 60
