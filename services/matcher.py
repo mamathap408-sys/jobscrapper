@@ -69,7 +69,7 @@ def _build_jobs_text(jobs: list[JobPosting]) -> str:
     parts = []
     for i, job in enumerate(jobs, 1):
         desc = job.description if job.description else "(no description available)"
-        if len(desc) > 10000:
+        if len(desc) > 20000:
             raise ValueError(
                 f"Job description too long ({len(desc)} chars) for job '{job.title}' "
                 f"(ID: {job.job_id}). First 200 chars: {desc[:200]}"
