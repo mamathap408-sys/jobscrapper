@@ -148,6 +148,8 @@ python scripts/discover_locations.py
 
 This creates `config/workday_locations.yaml` with per-portal location IDs used to filter jobs by region.
 
+**After running the script, manually review the YAML for false positives.** The `\bindia\b` word-boundary pattern in the script catches entries like "Chennai, India" or "Mumbai, India" that aren't in your target cities. Remove any locations that don't match your desired cities (currently Bangalore/Hyderabad only).
+
 ## Running
 
 ```bash
