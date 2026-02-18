@@ -6,7 +6,7 @@ workday | https://iqvia.wd1.myworkdayjobs.com/en-US/iqvia
 workday | https://dell.wd1.myworkdayjobs.com/en-US/External
 workday | https://target.wd5.myworkdayjobs.com/en-US/targetcareers
 workday | https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced
-workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
+#workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
 workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
 workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
 
@@ -36,7 +36,6 @@ workday | https://db.wd3.myworkdayjobs.com/DBWebsite
 workday | https://blackrock.wd1.myworkdayjobs.com/BlackRock_Professional
 workday | https://citi.wd5.myworkdayjobs.com/2
 workday | https://barclays.wd3.myworkdayjobs.com/External_Career_Site_Barclays
-workday | https://ghr.wd1.myworkdayjobs.com/lateral-apac
 workday | https://fmr.wd1.myworkdayjobs.com/FidelityCareers
 workday | https://capitalone.wd12.myworkdayjobs.com/Capital_One
 workday | https://cmegroup.wd1.myworkdayjobs.com/en-US/cme_careers
@@ -90,6 +89,7 @@ visa | https://corporate.visa.com/en/jobs/
 # Std Chartered   | https://peopleplus.wd3.myworkdayjobs.com/SCB_Careers (Workday, 0 India jobs)
 
 # --- Workday portals with India jobs but NOT in Bangalore (Pune/Gurgaon/Mumbai/Chennai) ---
+#workday | https://ghr.wd1.myworkdayjobs.com/lateral-apac                      # India jobs (Chennai only)
 #workday | https://mastercard.wd1.myworkdayjobs.com/en-US/CorporateCareers  # 249 India jobs (Pune, Gurgaon)
 #workday | https://flextronics.wd1.myworkdayjobs.com/en-US/Careers          # 708 India jobs (Chennai, Pune)
 #workday | https://ghr.wd1.myworkdayjobs.com/lateral-ba_continuum           # 71 India jobs (Mumbai, Hyderabad) — BofA India

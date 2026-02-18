@@ -46,14 +46,13 @@ OUTPUT_PATH = PROJECT_ROOT / "config" / "workday_locations.yaml"
 # Location names to match (case-insensitive)
 # "India" needs word-boundary matching to avoid "Indiana", "Indianapolis" etc.
 INDIAN_LOCATIONS = [
+    # Cities
     "Bengaluru", "Bangalore",
     "Hyderabad", "Hydrabad",
-    "Pune", "Poona",
-    "Mumbai", "Bombay",
-    "Karnataka",
-    "Telangana",
-    "Andhra Pradesh",
-    "Maharashtra",
+    # States
+    "Karnataka", "Karnātaka",
+    "Telangana", "Telangāna",
+    "Andhra Pradesh"
 ]
 
 # Patterns that need word-boundary check (would otherwise match Indiana, Indianapolis, etc.)
