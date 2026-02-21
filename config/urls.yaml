@@ -58,10 +58,21 @@ workday | https://fox.wd1.myworkdayjobs.com/Domestic
 
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 
-visa | https://corporate.visa.com/en/jobs/
+#visa | https://corporate.visa.com/en/jobs/
+
+# Cognizant (XML feed — all India jobs, filtered to Hyd/Blr in code)
+#cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
+#
+## SAP SuccessFactors RSS feeds (searches per city automatically)
+#successfactors | https://careers.wipro.com
+#successfactors | https://careers.capgemini.com
+#successfactors | https://careers.hcltech.com
+#successfactors | https://careers.ltimindtree.com
+
+# Google Careers (batchexecute RPC API — searches Bangalore + Hyderabad automatically)
+google | https://www.google.com/about/careers/applications/jobs/results
 
 # --- NOT supported (no Workday JSON API) ---
-# Google          | https://www.google.com/about/careers/applications/jobs/results (custom platform)
 # Goldman Sachs   | https://higher.gs.com/results?page=1&sort=RELEVANCE (custom platform)
 # Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)
 # IBM             | https://www.ibm.com/in-en/careers/search (Avature)

@@ -126,3 +126,12 @@ amazon:
 
 visa:
   max_age_days: 2
+
+cognizant:
+  max_age_days: 2
+
+successfactors:
+  max_age_days: 2
+
+google:
+  max_age_days: 2

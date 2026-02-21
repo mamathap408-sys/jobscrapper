@@ -165,6 +165,15 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     elif scraper_type == "visa":
         visa_cfg = config.get("visa", {})
         return get_scraper(scraper_type, max_age_days=visa_cfg.get("max_age_days"))
+    elif scraper_type == "cognizant":
+        cog_cfg = config.get("cognizant", {})
+        return get_scraper(scraper_type, max_age_days=cog_cfg.get("max_age_days"))
+    elif scraper_type == "successfactors":
+        sf_cfg = config.get("successfactors", {})
+        return get_scraper(scraper_type, max_age_days=sf_cfg.get("max_age_days"))
+    elif scraper_type == "google":
+        google_cfg = config.get("google", {})
+        return get_scraper(scraper_type, max_age_days=google_cfg.get("max_age_days"))
     else:
         return get_scraper(scraper_type)
 
