@@ -17,6 +17,9 @@ from scrapers.workday import WorkdayScraper
 from scrapers.generic import GenericScraper
 from scrapers.amazon import AmazonScraper
 from scrapers.visa import VisaScraper
+from scrapers.cognizant import CognizantScraper
+from scrapers.successfactors import SuccessFactorsScraper
+from scrapers.google import GoogleScraper
 
 # Maps the label used in urls.yaml → the scraper class to instantiate
 SCRAPER_REGISTRY: dict[str, type] = {
@@ -24,6 +27,9 @@ SCRAPER_REGISTRY: dict[str, type] = {
     "generic": GenericScraper,
     "amazon": AmazonScraper,
     "visa": VisaScraper,
+    "cognizant": CognizantScraper,
+    "successfactors": SuccessFactorsScraper,
+    "google": GoogleScraper,
 }
 
 
