@@ -2,47 +2,54 @@ profiles:
   - title: "Software Developer / Technical Support / Operations Support / Entry Level Roles"
     skills:
       - Java
-      - Spring Boot
-      - React.js
-      - SQL
       - Python
-      - GenAI API
-      - Spring Security
-      - JWT
-      - Docker
-      - JavaScript
-      - Web Scraping
-      - Playwright
+      - SQL
+      - Spring Boot
+      - Spring Data JPA
+      - REST APIs
+      - PostgreSQL
       - SQLite
+      - Docker
+      - Playwright
+      - httpx
+      - OAuth2
+      - JUnit
+      - HTML/CSS
+      - Web Scraping
+      - LLM APIs (Claude, OpenAI)
+      - Data Structures & Algorithms
+      - API Design
+      - Database Design
       - Automation
       - Troubleshooting
       - SaaS Platforms
-      - API Debugging
       - RCA (Root Cause Analysis)
+      - API Debugging
       - Ticketing Systems
       - Customer Communication
-      - Documentation
     tools:
       - Git
       - IntelliJ IDEA
       - PyCharm
-      - Postman
-      - Claude Code
-      - ChatGPT
       - Eclipse
+      - Postman
+      - Docker
+      - Claude Code
       - Slack
       - Excel
       - JIRA
       - ServiceNow
     experience_years: 1.5
-    location_preference: "Bangalore, India; Remote"
+    location_preference: "Bangalore, India; Hyderabad, India; Remote"
     additional_criteria: |
       Open to any role — SWE roles are preferred but support, operations, and data roles are welcome too.
-      Strong in Java, Python, GenAI and Spring Boot.
+      Strong in Java, Python, Spring Boot, and GenAI/LLM integration.
       Experience at Amazon as Sr. SPS Associate with RCA, API debugging, and Technical Support.
+      Built production-grade projects: URL shortener (Spring Boot + PostgreSQL), LLM-powered job scraper.
       Interested in backend, full-stack, platform engineering, technical support, or operations teams.
       Open to product-based companies and startups.
       Not interested in pure call-center or L1-only support roles.
+      B.Tech in ECE from JNTUA, self-taught software engineering transition.
 
 scoring_instructions: |
   Follow these steps IN ORDER for each job. Do not skip steps or freelance.
