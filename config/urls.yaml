@@ -61,7 +61,7 @@ amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&lo
 #visa | https://corporate.visa.com/en/jobs/
 
 # Cognizant (XML feed — all India jobs, filtered to Hyd/Blr in code)
-#cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
+cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
 #
 ## SAP SuccessFactors RSS feeds (searches per city automatically)
 #successfactors | https://careers.wipro.com
