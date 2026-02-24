@@ -24,7 +24,7 @@ from scrapers.base import BaseScraper, JobPosting
 logger = logging.getLogger(__name__)
 
 # Cities we want to match (case-insensitive)
-_DEFAULT_CITIES = ["bangalore", "bengaluru", "hyderabad"]
+_DEFAULT_CITIES = ["bangalore", "bengaluru", "hyderabad", "banglore"]
 
 
 def _strip_html(html: str) -> str:

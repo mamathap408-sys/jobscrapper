@@ -67,7 +67,7 @@ cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
 #successfactors | https://careers.wipro.com
 #successfactors | https://careers.capgemini.com
 #successfactors | https://careers.hcltech.com
-#successfactors | https://careers.ltimindtree.com
+successfactors | https://careers.ltimindtree.com
 
 # Google Careers (batchexecute RPC API — searches Bangalore + Hyderabad automatically)
 google | https://www.google.com/about/careers/applications/jobs/results
