@@ -174,6 +174,9 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     elif scraper_type == "google":
         google_cfg = config.get("google", {})
         return get_scraper(scraper_type, max_age_days=google_cfg.get("max_age_days"))
+    elif scraper_type == "hcl":
+        hcl_cfg = config.get("hcl", {})
+        return get_scraper(scraper_type, max_age_days=hcl_cfg.get("max_age_days"))
     else:
         return get_scraper(scraper_type)
 
