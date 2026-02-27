@@ -142,3 +142,6 @@ successfactors:
 
 google:
   max_age_days: 2
+
+hcl:
+  max_age_days: 2
