@@ -38,7 +38,7 @@ _DEFAULT_CITIES = ["Hyderabad", "Bengaluru", "Bangalore", "Banglore"]
 
 # How many RSS rows to request per city query.
 # Sites that support it return up to this many; others ignore it and return ~20.
-_DEFAULT_RSS_ROWS = 500
+_DEFAULT_RSS_ROWS = 5000
 
 # RSS namespace
 _NAMESPACES = {
