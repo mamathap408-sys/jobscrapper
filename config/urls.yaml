@@ -64,7 +64,7 @@ amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&lo
 cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
 #
 ## SAP SuccessFactors RSS feeds (searches per city automatically)
-#successfactors | https://careers.wipro.com
+successfactors | https://careers.wipro.com
 successfactors | https://careers.capgemini.com
 hcl | https://careers.hcltech.com
 successfactors | https://careers.ltimindtree.com
