@@ -2,6 +2,23 @@
 
 A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Visa Careers, Google Careers, Cognizant, HCLTech, SuccessFactors-based sites, and generic sites via Playwright), scores postings against your profile using an LLM, deduplicates via SQLite, and sends HTML digest emails through Gmail.
 
+## Email Digest Preview
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="readme-imgs/desktop-email.png" alt="Desktop email digest showing matched jobs with scores" width="500"/>
+      <br/>
+      <em>Desktop — high-match digest with LLM scores and reasoning</em>
+    </td>
+    <td align="center">
+      <img src="readme-imgs/phone-email.jpg" alt="Mobile email digest showing filtered low-priority jobs" width="250"/>
+      <br/>
+      <em>Mobile — low-priority filtered digest</em>
+    </td>
+  </tr>
+</table>
+
 ## How It Works
 
 1. Reads your profile, skills, and scoring rubric from `config/config.yaml`
