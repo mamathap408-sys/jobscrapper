@@ -1,6 +1,6 @@
 # Job Posting Watcher
 
-A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Visa Careers, and generic sites via Playwright), scores postings against your profile using an LLM, deduplicates via SQLite, and sends HTML digest emails through Gmail.
+A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Visa Careers, Google Careers, Cognizant, HCLTech, SuccessFactors-based sites, and generic sites via Playwright), scores postings against your profile using an LLM, deduplicates via SQLite, and sends HTML digest emails through Gmail.
 
 ## How It Works
 
@@ -17,6 +17,10 @@ A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Visa
 | **Workday** | Direct HTTP POST to Workday's hidden JSON API. Paginates in chunks of 20. | No |
 | **Amazon** | GET requests to Amazon Jobs' public JSON search API. Full descriptions inline. | No |
 | **Visa** | Direct HTTP POST to Visa's backend jobs API. Full descriptions inline. | No |
+| **Google** | POST to Google Careers' internal batchexecute RPC API. Paginates 20/page. | No |
+| **Cognizant** | Parses Cognizant's public XML/RSS feed. Filters by city after parsing. | No |
+| **SuccessFactors** | RSS feed scraper for SAP SuccessFactors-powered sites (Wipro, Capgemini, etc.). | No |
+| **HCL** | JSON API for HCLTech's SuccessFactors instance (RSS doesn't support location filtering). | No |
 | **Generic** | Playwright headless Chromium — scrolls page and finds job links via CSS selectors. | Yes |
 
 ## Prerequisites
@@ -81,7 +85,7 @@ genai:
 
 email:
   sender_email: "your-sender@gmail.com"
-  recipient_email: "your-recipient@gmail.com"
+  recipient_email: "you@gmail.com, teammate@gmail.com"  # comma-separated for multiple
   digest_mode: "aggregated"  # "per_company" or "aggregated"
 
 schedule:
@@ -96,12 +100,23 @@ amazon:
 
 visa:
   max_age_days: 3
+
+google:
+  max_age_days: 7  # Google Careers job age filter
+
+cognizant:
+  cities:  # Filter XML feed to these cities
+    - Bangalore
+    - Hyderabad
+
+hcl:
+  max_age_days: 7
 ```
 
 **Key fields:**
 
 - **`genai`**: Your LLM gateway credentials. The app authenticates via `login_url` (POST with username/password) to get a JWT token, then sends scoring prompts to `chat_url`. The password should be base64-encoded.
-- **`email`**: Gmail addresses for sending/receiving digests.
+- **`email`**: Gmail addresses for sending/receiving digests. Supports multiple comma-separated recipients.
 - **`match_threshold`**: Minimum LLM score (1-10) to include a job in the email. Lower = more jobs.
 - **`scoring_instructions`**: The full prompt sent to the LLM with your resume, disqualification rules, and scoring rubric.
 
@@ -118,6 +133,18 @@ amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&lo
 
 # Visa Jobs (Bangalore only)
 visa | https://corporate.visa.com/en/jobs/?cities=Bangalore
+
+# Google Careers
+google | https://www.google.com/about/careers/applications/jobs/results?location=Bangalore+India
+
+# Cognizant XML feed
+cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true
+
+# SuccessFactors RSS (Wipro, Capgemini, etc.)
+successfactors | https://wipro.eightfold.ai/services/rss/job/?locale=en_US
+
+# HCLTech JSON API
+hcl | https://careers.hcltech.com/
 
 # Generic sites (requires Playwright)
 generic | https://careers.example.com/jobs/
@@ -179,6 +206,10 @@ jobscrapper/
 │   ├── workday.py           # Workday JSON API scraper
 │   ├── amazon.py            # Amazon Jobs JSON API scraper
 │   ├── visa.py              # Visa Careers backend API scraper
+│   ├── google.py            # Google Careers batchexecute RPC scraper
+│   ├── cognizant.py         # Cognizant XML/RSS feed scraper
+│   ├── successfactors.py    # SAP SuccessFactors RSS scraper (Wipro, Capgemini, etc.)
+│   ├── hcl.py               # HCLTech SuccessFactors JSON API scraper
 │   └── generic.py           # Playwright-based fallback scraper
 ├── services/
 │   ├── db.py                # SQLite deduplication store
