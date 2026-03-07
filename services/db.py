@@ -14,11 +14,12 @@ Table: seen_jobs
   - match_score: GenAI relevance score (1-10), NULL if not yet scored
   - match_reason: GenAI explanation of the score
   - notified: Whether we've already sent an email about this job (0 or 1)
+  - matched: Whether this job scored >= threshold (0 or 1)
 
 Lifecycle of a job:
   1. Scraper finds a new job → filter_new() says it's new → matcher scores it → save_job()
   2. Next cycle, scraper finds it again → is_seen() returns True → touch_seen() updates last_seen
-  3. If score >= threshold → email sent → mark_notified()
+  3. Email sent (both matches and filtered) → mark_notified() for all
   4. If job disappears from portal → last_seen stops updating
 """
 
@@ -65,7 +66,8 @@ class JobDatabase:
                 last_seen TIMESTAMP NOT NULL,
                 match_score REAL,
                 match_reason TEXT,
-                notified BOOLEAN DEFAULT 0
+                notified BOOLEAN DEFAULT 0,
+                matched BOOLEAN DEFAULT 0
             )
         """)
         self._conn.commit()
@@ -109,6 +111,7 @@ class JobDatabase:
         job: JobPosting,
         match_score: float | None = None,
         match_reason: str | None = None,
+        matched: bool = False,
     ):
         """Save a job to the database (insert or update).
 
@@ -119,21 +122,23 @@ class JobDatabase:
             job:          The JobPosting to save.
             match_score:  GenAI relevance score (1-10), or None if not scored.
             match_reason: GenAI explanation, or None.
+            matched:      Whether this job scored >= threshold.
         """
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
             """
             INSERT INTO seen_jobs (job_id, job_num, title, company, location, url,
-                                   first_seen, last_seen, match_score, match_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   first_seen, last_seen, match_score, match_reason, matched)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 match_score = COALESCE(excluded.match_score, match_score),
-                match_reason = COALESCE(excluded.match_reason, match_reason)
+                match_reason = COALESCE(excluded.match_reason, match_reason),
+                matched = excluded.matched
             """,
             (
                 job.job_id, job.job_num, job.title, job.company, job.location, job.url,
-                now, now, match_score, match_reason,
+                now, now, match_score, match_reason, int(matched),
             ),
         )
         self._conn.commit()
@@ -163,6 +168,29 @@ class JobDatabase:
             "UPDATE seen_jobs SET last_seen = ? WHERE job_id = ?", (now, job_id)
         )
         self._conn.commit()
+
+    def get_unnotified_jobs(self) -> tuple[list[dict], list[dict]]:
+        """Return jobs that were scored but never emailed, split into matches and filtered.
+
+        This catches jobs from a previous run that were saved to the DB
+        but whose email failed to send before the process exited.
+
+        Returns:
+            Tuple of (matches, filtered) where each is a list of dicts.
+        """
+        rows = self._conn.execute(
+            """
+            SELECT job_id, job_num, title, company, location, url,
+                   match_score, match_reason, matched
+            FROM seen_jobs
+            WHERE notified = 0
+              AND match_score IS NOT NULL
+            ORDER BY match_score DESC
+            """,
+        ).fetchall()
+        matches = [dict(r) for r in rows if r["matched"]]
+        filtered = [dict(r) for r in rows if not r["matched"]]
+        return matches, filtered
 
     def close(self):
         """Close the database connection."""

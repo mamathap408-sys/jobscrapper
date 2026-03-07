@@ -181,6 +181,50 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
         return get_scraper(scraper_type)
 
 
+def _notify_pending(db: JobDatabase, notifier: EmailNotifier):
+    """Send notifications for jobs that were scored but never emailed.
+
+    This handles the case where a previous run saved jobs to the DB and then
+    crashed or exited before the email was sent. Called once at startup before
+    the first cycle.
+    """
+    pending_matches, pending_filtered = db.get_unnotified_jobs()
+    if not pending_matches and not pending_filtered:
+        return
+
+    logger.info("Found %d matches and %d filtered unnotified jobs from a previous run",
+                len(pending_matches), len(pending_filtered))
+
+    from scrapers.base import JobPosting
+
+    def _rows_to_tuples(rows):
+        result = []
+        for row in rows:
+            job = JobPosting(
+                job_id=row["job_id"],
+                job_num=row["job_num"] or "",
+                title=row["title"],
+                company=row["company"],
+                location=row["location"] or "",
+                description="",
+                url=row["url"],
+                posted_date="",
+            )
+            result.append((job, row["match_score"], row["match_reason"] or ""))
+        return result
+
+    matches = _rows_to_tuples(pending_matches)
+    filtered = _rows_to_tuples(pending_filtered)
+
+    try:
+        notifier.send_digest(matches, filtered=filtered)
+        for job, _, _ in matches + filtered:
+            db.mark_notified(job.job_id)
+        logger.info("Sent pending notification for %d matches + %d filtered", len(matches), len(filtered))
+    except Exception as e:
+        logger.error("Failed to send pending notifications: %s", e)
+
+
 def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: EmailNotifier,
               workday_locations: dict | None = None):
     """Run one full check cycle: scrape all portals, match new jobs, send digest.
@@ -233,8 +277,9 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                 matches = []
                 filtered = []
                 for job, score, reason in scored:
-                    db.save_job(job, match_score=score, match_reason=reason)
-                    if score >= matcher.threshold:
+                    is_match = score >= matcher.threshold
+                    db.save_job(job, match_score=score, match_reason=reason, matched=is_match)
+                    if is_match:
                         matches.append((job, score, reason))
                         logger.info(
                             "  MATCH: %s at %s (score=%d)", job.title, job.company, score
@@ -251,7 +296,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     if matches or filtered:
                         company = new_jobs[0].company
                         notifier.send_digest(matches, filtered=filtered, company=company)
-                        for job, _, _ in matches:
+                        for job, _, _ in matches + filtered:
                             db.mark_notified(job.job_id)
                 else:
                     # Accumulate for aggregated email
@@ -266,7 +311,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                         all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
                         all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
                         notifier.send_digest(all_matches, filtered=all_filtered)
-                        for job, _, _ in all_matches:
+                        for job, _, _ in all_matches + all_filtered:
                             db.mark_notified(job.job_id)
                         all_matches.clear()
                         all_filtered.clear()
@@ -292,7 +337,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
         all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
         notifier.send_digest(all_matches, filtered=all_filtered)
-        for job, _, _ in all_matches:
+        for job, _, _ in all_matches + all_filtered:
             db.mark_notified(job.job_id)
 
     logger.info(
@@ -332,6 +377,9 @@ def main():
     # Read schedule interval from config (default: every 60 minutes)
     interval = config["schedule"].get("interval_minutes", 60)
     logger.info("Scheduling checks every %d minutes", interval)
+
+    # Send any notifications that failed in a previous run
+    _notify_pending(db, notifier)
 
     # Run the first check immediately (don't wait for the timer)
     run_cycle(config, db, matcher, notifier, workday_locations)
