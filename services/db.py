@@ -65,7 +65,7 @@ class JobDatabase:
                 first_seen TIMESTAMP NOT NULL,
                 last_seen TIMESTAMP NOT NULL,
                 match_score REAL NOT NULL,
-                match_reason TEXT,
+                match_reason TEXT NOT NULL,
                 notified BOOLEAN DEFAULT 0,
                 matched BOOLEAN DEFAULT 0
             )
@@ -110,7 +110,7 @@ class JobDatabase:
         self,
         job: JobPosting,
         match_score: float,
-        match_reason: str | None = None,
+        match_reason: str,
         matched: bool = False,
     ):
         """Save a job to the database (insert or update).
@@ -133,7 +133,7 @@ class JobDatabase:
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 match_score = excluded.match_score,
-                match_reason = COALESCE(excluded.match_reason, match_reason),
+                match_reason = excluded.match_reason,
                 matched = excluded.matched
             """,
             (
