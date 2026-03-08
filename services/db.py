@@ -11,7 +11,7 @@ Table: seen_jobs
   - title, company, location, url: Basic job info
   - first_seen: When we first discovered this job
   - last_seen: Last time the scraper found this job (updated each cycle)
-  - match_score: GenAI relevance score (1-10), NULL if not yet scored
+  - match_score: GenAI relevance score (1-10), NOT NULL
   - match_reason: GenAI explanation of the score
   - notified: Whether we've already sent an email about this job (0 or 1)
   - matched: Whether this job scored >= threshold (0 or 1)
@@ -64,7 +64,7 @@ class JobDatabase:
                 url TEXT NOT NULL,
                 first_seen TIMESTAMP NOT NULL,
                 last_seen TIMESTAMP NOT NULL,
-                match_score REAL,
+                match_score REAL NOT NULL,
                 match_reason TEXT,
                 notified BOOLEAN DEFAULT 0,
                 matched BOOLEAN DEFAULT 0
@@ -109,7 +109,7 @@ class JobDatabase:
     def save_job(
         self,
         job: JobPosting,
-        match_score: float | None = None,
+        match_score: float,
         match_reason: str | None = None,
         matched: bool = False,
     ):
@@ -120,7 +120,7 @@ class JobDatabase:
 
         Args:
             job:          The JobPosting to save.
-            match_score:  GenAI relevance score (1-10), or None if not scored.
+            match_score:  GenAI relevance score (1-10).
             match_reason: GenAI explanation, or None.
             matched:      Whether this job scored >= threshold.
         """
@@ -132,7 +132,7 @@ class JobDatabase:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
-                match_score = COALESCE(excluded.match_score, match_score),
+                match_score = excluded.match_score,
                 match_reason = COALESCE(excluded.match_reason, match_reason),
                 matched = excluded.matched
             """,
@@ -184,7 +184,6 @@ class JobDatabase:
                    match_score, match_reason, matched
             FROM seen_jobs
             WHERE notified = 0
-              AND match_score IS NOT NULL
             ORDER BY match_score DESC
             """,
         ).fetchall()
