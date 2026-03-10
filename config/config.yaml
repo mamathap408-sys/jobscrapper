@@ -69,6 +69,7 @@ scoring_instructions: |
   - Requires 5+ years in a specific field → score 1
   - Requires 4+ years in any field → score 2
   - Senior / L5+ / 3+ years required SWE role → score 2
+  - Targets a specific graduation batch after 2022 (e.g. "2023 batch only", "2024 passout", "2025 graduates only") → score 1
 
   ## Step 2: EXTRACT EXPERIENCE REQUIREMENT
   Find the exact years of experience the job posting states.
