@@ -67,7 +67,9 @@ class JobDatabase:
                 match_score REAL NOT NULL,
                 match_reason TEXT NOT NULL,
                 notified BOOLEAN DEFAULT 0,
-                matched BOOLEAN DEFAULT 0
+                matched BOOLEAN DEFAULT 0,
+                job_description TEXT,
+                resume_name TEXT
             )
         """)
         self._conn.commit()
@@ -128,17 +130,19 @@ class JobDatabase:
         self._conn.execute(
             """
             INSERT INTO seen_jobs (job_id, job_num, title, company, location, url,
-                                   first_seen, last_seen, match_score, match_reason, matched)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   first_seen, last_seen, match_score, match_reason, matched,
+                                   job_description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 match_score = excluded.match_score,
                 match_reason = excluded.match_reason,
-                matched = excluded.matched
+                matched = excluded.matched,
+                job_description = excluded.job_description
             """,
             (
                 job.job_id, job.job_num, job.title, job.company, job.location, job.url,
-                now, now, match_score, match_reason, int(matched),
+                now, now, match_score, match_reason, int(matched), job.description,
             ),
         )
         self._conn.commit()
@@ -190,6 +194,37 @@ class JobDatabase:
         matches = [dict(r) for r in rows if r["matched"]]
         filtered = [dict(r) for r in rows if not r["matched"]]
         return matches, filtered
+
+    def get_job_by_id(self, job_id: str) -> dict | None:
+        """Fetch a single job by its ID.
+
+        Returns:
+            Dict with all columns, or None if not found.
+        """
+        row = self._conn.execute(
+            "SELECT * FROM seen_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def set_resume_name(self, job_id: str, resume_name: str):
+        """Store the generated resume filename for a job."""
+        self._conn.execute(
+            "UPDATE seen_jobs SET resume_name = ? WHERE job_id = ?",
+            (resume_name, job_id),
+        )
+        self._conn.commit()
+
+    def get_jobs_needing_resume(self, threshold: float) -> list[dict]:
+        """Return matched jobs above threshold that don't have a resume yet."""
+        rows = self._conn.execute(
+            """
+            SELECT * FROM seen_jobs
+            WHERE match_score >= ? AND resume_name IS NULL
+            ORDER BY match_score DESC
+            """,
+            (threshold,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def close(self):
         """Close the database connection."""
