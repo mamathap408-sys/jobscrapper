@@ -185,7 +185,7 @@ class JobDatabase:
         rows = self._conn.execute(
             """
             SELECT job_id, job_num, title, company, location, url,
-                   match_score, match_reason, matched
+                   match_score, match_reason, matched, job_description
             FROM seen_jobs
             WHERE notified = 0
             ORDER BY match_score DESC
@@ -213,6 +213,14 @@ class JobDatabase:
             (resume_name, job_id),
         )
         self._conn.commit()
+
+    def get_last_resume_name(self) -> str | None:
+        """Return the latest resume_name by sequence order, or None if none exist."""
+        row = self._conn.execute(
+            "SELECT resume_name FROM seen_jobs WHERE resume_name IS NOT NULL "
+            "ORDER BY length(resume_name) DESC, resume_name DESC LIMIT 1"
+        ).fetchone()
+        return row[0] if row else None
 
     def get_jobs_needing_resume(self, threshold: float) -> list[dict]:
         """Return matched jobs above threshold that don't have a resume yet."""

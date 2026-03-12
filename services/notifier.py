@@ -30,6 +30,7 @@ import base64
 import logging
 import os
 import urllib3
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
@@ -61,20 +62,36 @@ def _build_html(
     matches: list[tuple[JobPosting, int, str]],
     filtered: list[tuple[JobPosting, int, str]] | None = None,
     company: str = "",
+    attachments: dict[str, Path] | None = None,
 ) -> str:
     """Build an HTML email body with matched jobs and optionally filtered jobs.
 
     Args:
-        matches:  List of (JobPosting, score, reason) tuples above threshold.
-        filtered: List of (JobPosting, score, reason) tuples below threshold.
-        company:  Company name to display in the heading.
+        matches:     List of (JobPosting, score, reason) tuples above threshold.
+        filtered:    List of (JobPosting, score, reason) tuples below threshold.
+        company:     Company name to display in the heading.
+        attachments: Optional dict mapping job_id → PDF path (to show resume column).
 
     Returns:
         Complete HTML string ready to be used as email body.
     """
+    has_resumes = bool(attachments)
     rows = []
     for job, score, reason in matches:
         color = '#34a853' if score >= 8 else '#fbbc04' if score >= 6 else '#ea4335'
+        resume_cell = ""
+        if has_resumes:
+            pdf_path = attachments.get(job.job_id)
+            if pdf_path:
+                resume_cell = f"""
+            <td style="padding:12px; border-bottom:1px solid #eee; font-size:0.85em; color:#1a73e8;">
+                &#128206; {pdf_path.name}
+            </td>"""
+            else:
+                resume_cell = """
+            <td style="padding:12px; border-bottom:1px solid #eee; color:#aaa; font-size:0.85em;">
+                —
+            </td>"""
         rows.append(f"""
         <tr>
             <td style="padding:12px; border-bottom:1px solid #eee;">
@@ -92,7 +109,7 @@ def _build_html(
             </td>
             <td style="padding:12px; border-bottom:1px solid #eee; color:#555; font-size:0.9em;">
                 {reason}
-            </td>
+            </td>{resume_cell}
         </tr>
         """)
 
@@ -122,6 +139,7 @@ def _build_html(
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     heading = f"{company} — Job Match Digest" if company else "Job Match Digest"
+    resume_header = '<th style="padding:10px; text-align:left;">Resume</th>' if has_resumes else ""
     return f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width:800px; margin:auto;">
@@ -133,6 +151,7 @@ def _build_html(
                     <th style="padding:10px; text-align:left;">Position</th>
                     <th style="padding:10px; text-align:center; width:80px;">Score</th>
                     <th style="padding:10px; text-align:left;">Why it matches</th>
+                    {resume_header}
                 </tr>
             </thead>
             <tbody>
@@ -272,20 +291,28 @@ class EmailNotifier:
         matches: list[tuple[JobPosting, int, str]],
         filtered: list[tuple[JobPosting, int, str]] | None = None,
         company: str = "",
+        attachments: dict[str, Path] | None = None,
     ):
         """Send an HTML digest email with matched and filtered jobs.
 
         Args:
-            matches:  High-scoring jobs (>= threshold).
-            filtered: Low-scoring jobs (< threshold), shown at the bottom for a quick glance.
-            company:  Company name for per-company emails.
+            matches:     High-scoring jobs (>= threshold).
+            filtered:    Low-scoring jobs (< threshold), shown at the bottom for a quick glance.
+            company:     Company name for per-company emails.
+            attachments: Optional dict mapping job_id → PDF path to attach to the email.
         """
         self._ensure_service()
 
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-        # Build email with both HTML and plain text versions
-        msg = MIMEMultipart("alternative")
+        # If we have attachments, use mixed outer + alternative body
+        # Otherwise, just use alternative (plain + html)
+        if attachments:
+            msg = MIMEMultipart("mixed")
+            body = MIMEMultipart("alternative")
+        else:
+            msg = MIMEMultipart("alternative")
+            body = msg  # same object
 
         # Subject: "Important" if real matches, "Low-Priority" if only filtered
         if matches:
@@ -310,10 +337,24 @@ class EmailNotifier:
             plain_lines.append("\n--- Filtered Jobs ---\n")
             for job, score, reason in filtered:
                 plain_lines.append(f"- {job.title} ({job.company}) — {score}/10: {reason}\n")
-        msg.attach(MIMEText("\n".join(plain_lines), "plain"))
+        body.attach(MIMEText("\n".join(plain_lines), "plain"))
 
         # HTML version (nice formatted table with color-coded scores)
-        msg.attach(MIMEText(_build_html(matches, filtered, company=company), "html"))
+        body.attach(MIMEText(_build_html(matches, filtered, company=company, attachments=attachments), "html"))
+
+        # If mixed mode, attach body part then PDFs
+        if attachments:
+            msg.attach(body)
+            for job_id, pdf_path in attachments.items():
+                if pdf_path.exists():
+                    with open(pdf_path, "rb") as f:
+                        pdf_part = MIMEApplication(f.read(), _subtype="pdf")
+                    pdf_part.add_header(
+                        "Content-Disposition", "attachment",
+                        filename=pdf_path.name,
+                    )
+                    msg.attach(pdf_part)
+                    logger.info("Attached resume %s for job %s", pdf_path.name, job_id)
 
         # Encode the email as base64 and send via Gmail API
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

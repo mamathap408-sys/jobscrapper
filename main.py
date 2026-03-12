@@ -42,6 +42,7 @@ from config import load_config, load_urls
 from services.db import JobDatabase
 from services.matcher import JobMatcher
 from services.notifier import EmailNotifier
+from services.resume_builder import ResumeBuilder
 from scrapers import get_scraper
 
 # Configure logging to show timestamps and module names
@@ -181,7 +182,8 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
         return get_scraper(scraper_type)
 
 
-def _notify_pending(db: JobDatabase, notifier: EmailNotifier):
+def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
+                    resume_builder: ResumeBuilder | None = None, attach_resume: bool = False):
     """Send notifications for jobs that were scored but never emailed.
 
     This handles the case where a previous run saved jobs to the DB and then
@@ -206,7 +208,7 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier):
                 title=row["title"],
                 company=row["company"],
                 location=row["location"] or "",
-                description="",
+                description=row.get("job_description") or "",
                 url=row["url"],
                 posted_date="",
             )
@@ -216,8 +218,12 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier):
     matches = _rows_to_tuples(pending_matches)
     filtered = _rows_to_tuples(pending_filtered)
 
+    pdfs = {}
+    if attach_resume and resume_builder and matches:
+        pdfs = resume_builder.generate_for_matches(matches)
+
     try:
-        notifier.send_digest(matches, filtered=filtered)
+        notifier.send_digest(matches, filtered=filtered, attachments=pdfs or None)
         for job, _, _ in matches + filtered:
             db.mark_notified(job.job_id)
         logger.info("Sent pending notification for %d matches + %d filtered", len(matches), len(filtered))
@@ -226,7 +232,7 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier):
 
 
 def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: EmailNotifier,
-              workday_locations: dict | None = None):
+              workday_locations: dict | None = None, resume_builder: ResumeBuilder | None = None):
     """Run one full check cycle: scrape all portals, match new jobs, send digest.
 
     This function is called once immediately at startup, then every N minutes
@@ -238,10 +244,12 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         matcher:            The GenAI matcher for scoring jobs.
         notifier:           The email notifier for sending digests.
         workday_locations:  Per-portal facets from workday_locations.yaml.
+        resume_builder:     Optional resume builder for generating tailored resumes.
     """
     urls = load_urls()  # Re-read urls.yaml each cycle (in case you add new portals)
     delay = config["schedule"].get("delay_between_sites_seconds", 5)
     digest_mode = config.get("email", {}).get("digest_mode", "per_company")
+    attach_resume = config.get("resume_builder", {}).get("attach_resume", False)
     wd_locations = workday_locations or {}
     total_matches = 0
     total_filtered = 0
@@ -295,7 +303,11 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     # Send one email per company immediately
                     if matches or filtered:
                         company = new_jobs[0].company
-                        notifier.send_digest(matches, filtered=filtered, company=company)
+                        pdfs = {}
+                        if attach_resume and resume_builder and matches:
+                            pdfs = resume_builder.generate_for_matches(matches)
+                        notifier.send_digest(matches, filtered=filtered, company=company,
+                                             attachments=pdfs or None)
                         for job, _, _ in matches + filtered:
                             db.mark_notified(job.job_id)
                 else:
@@ -310,7 +322,11 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                                     len(all_matches), agg_threshold)
                         all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
                         all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-                        notifier.send_digest(all_matches, filtered=all_filtered)
+                        pdfs = {}
+                        if attach_resume and resume_builder and all_matches:
+                            pdfs = resume_builder.generate_for_matches(all_matches)
+                        notifier.send_digest(all_matches, filtered=all_filtered,
+                                             attachments=pdfs or None)
                         for job, _, _ in all_matches + all_filtered:
                             db.mark_notified(job.job_id)
                         all_matches.clear()
@@ -336,7 +352,10 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     if digest_mode == "aggregated" and (all_matches or all_filtered):
         all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
         all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-        notifier.send_digest(all_matches, filtered=all_filtered)
+        pdfs = {}
+        if attach_resume and resume_builder and all_matches:
+            pdfs = resume_builder.generate_for_matches(all_matches)
+        notifier.send_digest(all_matches, filtered=all_filtered, attachments=pdfs or None)
         for job, _, _ in all_matches + all_filtered:
             db.mark_notified(job.job_id)
 
@@ -368,6 +387,13 @@ def main():
     logger.info("Initializing notifier...")
     notifier = EmailNotifier(config)
 
+    # Initialize resume builder if attach_resume is enabled
+    rb_cfg = config.get("resume_builder", {})
+    resume_builder = None
+    if rb_cfg.get("attach_resume", False):
+        logger.info("Initializing resume builder (attach_resume=true)...")
+        resume_builder = ResumeBuilder(config, db)
+
     logger.info("Initializing Playwright...")
     pw = _init_playwright()
 
@@ -379,13 +405,13 @@ def main():
     logger.info("Scheduling checks every %d minutes", interval)
 
     # Send any notifications that failed in a previous run
-    _notify_pending(db, notifier)
+    _notify_pending(db, notifier, resume_builder, rb_cfg.get("attach_resume", False))
 
     # Run the first check immediately (don't wait for the timer)
-    run_cycle(config, db, matcher, notifier, workday_locations)
+    run_cycle(config, db, matcher, notifier, workday_locations, resume_builder)
 
     # Schedule all subsequent checks using the 'schedule' library
-    schedule.every(interval).minutes.do(run_cycle, config, db, matcher, notifier, workday_locations)
+    schedule.every(interval).minutes.do(run_cycle, config, db, matcher, notifier, workday_locations, resume_builder)
 
     # Main loop: check if any scheduled jobs need to run, every second
     logger.info("Watcher running. Press Ctrl+C to stop.")
@@ -400,6 +426,8 @@ def main():
         logger.info("Playwright browser closed")
     if pw:
         pw.stop()            # Stop Playwright process
+    if resume_builder:
+        resume_builder.close()
     matcher.close()          # Close httpx client
     db.close()               # Close SQLite connection
     logger.info("Goodbye.")
