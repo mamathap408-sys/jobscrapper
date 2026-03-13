@@ -119,6 +119,12 @@ email:
   digest_mode: "aggregated"  # "per_company" = one email per site, "aggregated" = single email after all sites
   aggregated_threshold: 10   # in aggregated mode, flush email when matches reach this count (0 = send only at end)
 
+resume_builder:
+  threshold: 7                       # generate resumes for jobs scoring > this
+  base_resume: "data/resume_v2.tex"
+  attach_resume: true               # when true, generate + attach PDFs before sending email
+  tex_bin: "/Library/TeX/texbin"     # path to TeX binaries (pdflatex), added to PATH if set
+
 schedule:
   interval_minutes: 60
   delay_between_sites_seconds: 5
