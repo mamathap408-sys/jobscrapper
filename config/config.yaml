@@ -1,25 +1,29 @@
 profiles:
   - title: "Software Developer / Technical Support / Operations Support / Entry Level Roles"
     skills:
-      - Java
+      - Java (primary)
       - Python
       - SQL
+      - HTML/CSS
       - Spring Boot
+      - Spring
       - Spring Data JPA
+      - REST
       - REST APIs
+      - Microservices
+      - JUnit
+      - OAuth2
       - PostgreSQL
       - SQLite
       - Docker
-      - Playwright
-      - httpx
-      - OAuth2
-      - JUnit
-      - HTML/CSS
-      - Web Scraping
       - LLM APIs (Claude, OpenAI)
+      - Playwright
+      - Linux
       - Data Structures & Algorithms
-      - API Design
+      - Object-Oriented Programming
       - Database Design
+      - API Design
+      - Web Scraping
       - Automation
       - Troubleshooting
       - SaaS Platforms
@@ -34,6 +38,7 @@ profiles:
       - Eclipse
       - Postman
       - Docker
+      - Linux
       - Claude Code
       - Slack
       - Excel
@@ -43,9 +48,10 @@ profiles:
     location_preference: "Bangalore, India; Hyderabad, India; Remote"
     additional_criteria: |
       Open to any role — SWE roles are preferred but support, operations, and data roles are welcome too.
-      Strong in Java, Python, Spring Boot, and GenAI/LLM integration.
+      Strong in Java (primary), Python, Spring Boot, REST, Microservices, and GenAI/LLM integration.
       Experience at Amazon as Sr. SPS Associate with RCA, API debugging, and Technical Support.
-      Built production-grade projects: URL shortener (Spring Boot + PostgreSQL), LLM-powered job scraper.
+      Built production-grade projects: URL shortener (Spring Boot + PostgreSQL + Docker), LLM-powered job scraper (Python, Playwright, SQLite).
+      CS fundamentals: DSA, OOP, database design.
       Interested in backend, full-stack, platform engineering, technical support, or operations teams.
       Open to product-based companies and startups.
       Not interested in pure call-center or L1-only support roles.
