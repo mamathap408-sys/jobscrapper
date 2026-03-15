@@ -30,29 +30,26 @@ logger = logging.getLogger(__name__)
 OUTPUT_DIR = Path(__file__).parent.parent / "generated_resumes"
 
 _TAILOR_PROMPT = """\
-You are a resume tailoring assistant. You will receive a base LaTeX resume and a job description.
+You will receive a base LaTeX resume and a job description. Make MINIMAL, surgical edits to help the resume pass ATS keyword filters for this job. The resume should still read like a human wrote it.
 
-Your task: Return a COMPLETE, VALID LaTeX file that is a tailored version of the base resume for this specific job.
+## What to do — LESS IS MORE
 
-## Rules — READ CAREFULLY
+1. **Summary**: Rewrite to align with the JD, but keep the original tone and structure. Mention key skills/technologies from the JD that the candidate actually has. Keep to 2-3 sentences.
+2. **Technical Skills**: Reorder so JD-relevant skills appear first. If the candidate clearly has a skill from the JD (proven by their projects/experience) but it's missing, add it. Remove nothing.
+3. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
+4. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
+5. **Education & Additional**: Copy EXACTLY as-is. Zero changes.
 
-### Sections you CAN modify:
-- **Summary**: Rewrite to highlight the most relevant experience and skills for this job. Keep it concise (2-3 sentences).
-- **Projects**: You may reorder bullet points, adjust emphasis, or slightly reword to highlight relevant technologies/skills. Do NOT invent new projects or remove existing ones.
-- **Technical Skills**: You may reorder skills, add relevant skills the candidate actually has (based on the projects and experience), or adjust groupings. Do NOT add skills the candidate clearly doesn't have.
+## Critical constraints
+- Keep changes minimal and natural. If the base resume already matches well, return it nearly unchanged.
+- Do NOT add flowery language, buzzwords, or filler. Keep the candidate's original voice.
+- Do NOT fabricate skills or experience.
+- Do NOT add new bullet points anywhere.
+- **Skills limit**: The final total skill count must NOT exceed the original count by more than 2. You CAN remove irrelevant skills and replace them with more suitable ones from the JD — replacements don't count toward the limit since the total stays the same.
 
-### Sections you MUST NOT modify:
-- **Education**: Keep exactly as-is.
-- **Additional** (Achievements): Keep exactly as-is.
-
-### Sections you should barely modify:
-- **Experience**: Keep the content nearly identical. You may make very minor wording tweaks to emphasize relevant aspects, but do NOT change job titles, dates, companies, or add/remove bullet points.
-
-### Format rules:
-- Return ONLY the complete LaTeX source code, nothing else.
-- Do NOT wrap it in markdown code fences.
-- Do NOT add any commentary before or after the LaTeX.
-- The output must compile with pdflatex without errors.
+## Format
+- Return ONLY the complete LaTeX source code. No commentary, no markdown fences.
+- Must compile with pdflatex without errors.
 - Preserve all LaTeX commands, packages, and formatting exactly.
 
 ## Base Resume:
@@ -60,8 +57,6 @@ Your task: Return a COMPLETE, VALID LaTeX file that is a tailored version of the
 
 ## Job Description:
 {job_description}
-
-Return the complete tailored LaTeX file now:
 """
 
 
