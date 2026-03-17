@@ -453,3 +453,10 @@ fox.wd1.myworkdayjobs.com/Domestic:
   locations:
   - id: ceb903b36ece100211631fa3327f0000
     descriptor: IND-KA-Bengaluru
+visa.wd5.myworkdayjobs.com/en-US/Visa:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 6a6b666e8c601001fe40e79f253d0000
+    descriptor: IN - Bengaluru, India
