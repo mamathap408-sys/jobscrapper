@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from scrapers.visa import VisaScraper, _parse_age_days, _strip_html
+from scrapers.deprecated.visa import VisaScraper, _parse_age_days, _strip_html
 
 
 class DummyResponse:
@@ -128,7 +128,7 @@ def test_scrape_filters_by_age():
     client = DummyClient([DummyResponse(payload)])
     scraper = VisaScraper(client=client, max_age_days=3)
 
-    from scrapers import visa as visa_module
+    from scrapers.deprecated import visa as visa_module
 
     original_datetime = visa_module.datetime
 

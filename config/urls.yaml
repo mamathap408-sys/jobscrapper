@@ -55,10 +55,9 @@ workday | https://shell.wd3.myworkdayjobs.com/en-US/ShellCareers
 workday | https://warnerbros.wd5.myworkdayjobs.com/global
 workday | https://unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals
 workday | https://fox.wd1.myworkdayjobs.com/Domestic
+workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
 
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
-
-#visa | https://corporate.visa.com/en/jobs/
 
 # Cognizant (XML feed — all India jobs, filtered to Hyd/Blr in code)
 cognizant | https://careers.cognizant.com/india-en/jobs/xml/?rss=true

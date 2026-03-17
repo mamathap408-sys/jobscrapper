@@ -163,9 +163,7 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     elif scraper_type == "amazon":
         amz_cfg = config.get("amazon", {})
         return get_scraper(scraper_type, max_age_days=amz_cfg.get("max_age_days"))
-    elif scraper_type == "visa":
-        visa_cfg = config.get("visa", {})
-        return get_scraper(scraper_type, max_age_days=visa_cfg.get("max_age_days"))
+    # visa scraper deprecated — Visa migrated to Workday (use workday type)
     elif scraper_type == "cognizant":
         cog_cfg = config.get("cognizant", {})
         return get_scraper(scraper_type, max_age_days=cog_cfg.get("max_age_days"))
