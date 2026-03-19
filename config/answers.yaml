@@ -1,0 +1,112 @@
+# answers.yaml — Personal Data & Screening Question Answers
+# =========================================================
+# Used by apply.py to fill Workday application forms.
+#
+# - personal / work_experience / education: auto-fill static form fields (no LLM)
+# - workday_account: credentials for sign-in / account creation on Workday portals
+# - qa: pre-written answers keyed by normalized question text (checked BEFORE LLM)
+
+personal:
+  first_name: "xxxx"
+  last_name: "xxxx"
+  email: "xxxx@example.com"
+  phone: "+91-xxxx"
+  address_line1: "xxxx"
+  city: "xxxx"
+  state: "xxxx"
+  country: "India"
+  postal_code: "xxxx"
+  landmark: "xxxx"
+  linkedin_url: "https://linkedin.com/in/xxxx"
+  github_url: "https://github.com/xxxx"
+
+work_experience:
+  - title: "xxxx"
+    company: "xxxx"
+    start_date: "xxxx"
+    end_date: "xxxx"
+    current: false
+    location: "xxxx"
+    description: "xxxx"
+
+education:
+  - degree: "xxxx"
+    field: "xxxx"
+    institution: "xxxx"
+    graduation_year: "xxxx"
+    gpa: ""
+
+# Workday account credentials (for sign-in / account creation)
+workday_account:
+  email: "xxxx@example.com"
+  password: "xxxx"
+
+# Pre-written answers keyed by normalized question text.
+# Checked BEFORE calling LLM — saves cost and latency.
+# Keys must be lowercase with trailing punctuation stripped.
+qa:
+  # Work authorization
+  "are you legally authorized to work in india": "Yes"
+  "are you legally authorized to work in this country": "Yes"
+  "are you currently authorized to work in india": "Yes"
+  "do you have the legal right to work in india": "Yes"
+  "will you now or in the future require visa sponsorship": "No"
+  "do you now or will you in the future require sponsorship": "No"
+  "will you require sponsorship for employment visa status": "No"
+  "do you require visa sponsorship to work in this country": "No"
+
+  # Availability & notice
+  "what is your notice period": "Immediately available"
+  "what is your earliest start date": "Immediately available"
+  "are you available to start immediately": "Yes"
+  "when can you start": "Immediately"
+  "what is your current notice period in days": "0"
+
+  # Salary
+  "what are your salary expectations": "As per company standards"
+  "what is your expected annual salary": "As per company standards"
+  "what is your expected ctc": "As per company standards"
+  "salary expectations in inr": "As per company standards"
+
+  # Previous employment
+  "have you previously worked at this company": "No"
+  "have you ever been employed by this company": "No"
+  "are you a former employee": "No"
+  "have you previously applied to this company": "No"
+
+  # Education
+  "do you have a bachelors degree": "Yes"
+  "do you have a bachelor degree": "Yes"
+  "what is your highest level of education": "Bachelor's Degree"
+  "highest qualification": "B.Tech"
+  "year of graduation": "xxxx"
+  "graduation year": "xxxx"
+
+  # Experience
+  "how many years of total work experience do you have": "xxxx"
+  "total years of experience": "xxxx"
+  "years of relevant experience": "xxxx"
+  "years of experience with java": "xxxx"
+  "years of experience with python": "xxxx"
+  "years of experience with spring boot": "xxxx"
+  "years of experience with sql": "xxxx"
+  "years of experience with docker": "xxxx"
+  "years of experience with rest apis": "xxxx"
+  "years of experience with aws": "xxxx"
+  "years of experience with kubernetes": "xxxx"
+
+  # Location & relocation
+  "are you willing to relocate": "Yes"
+  "are you comfortable working in a hybrid environment": "Yes"
+  "are you open to working from office": "Yes"
+  "preferred work location": "xxxx"
+  "current location": "xxxx"
+  "current city": "xxxx"
+
+  # Gender / demographics (if asked outside self-identification page)
+  "gender": "xxxx"
+
+  # Referral
+  "were you referred by an employee": "No"
+  "how did you hear about this position": "Company career website"
+  "source of application": "Company career website"
