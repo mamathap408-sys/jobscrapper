@@ -54,6 +54,7 @@ class JobDatabase:
 
         Uses CREATE TABLE IF NOT EXISTS so it's safe to call every time.
         """
+        self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS seen_jobs (
                 job_id TEXT PRIMARY KEY,
@@ -70,6 +71,17 @@ class JobDatabase:
                 matched BOOLEAN DEFAULT 0,
                 job_description TEXT,
                 resume_name TEXT
+            )
+        """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS applied_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                applied_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL,
+                FOREIGN KEY (job_id) REFERENCES seen_jobs(job_id)
             )
         """)
         self._conn.commit()
@@ -233,6 +245,57 @@ class JobDatabase:
             (threshold,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # ── Applied Jobs ──────────────────────────────────────────────
+
+    def create_application(self, job_id: str):
+        """Insert a pending application record for a job."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            "INSERT OR IGNORE INTO applied_jobs (job_id, status, created_at) VALUES (?, 'pending', ?)",
+            (job_id, now),
+        )
+        self._conn.commit()
+
+    def mark_applied(self, job_id: str):
+        """Mark a job application as successfully submitted."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            "UPDATE applied_jobs SET status = 'submitted', applied_at = ? WHERE job_id = ?",
+            (now, job_id),
+        )
+        self._conn.commit()
+
+    def mark_apply_failed(self, job_id: str, error: str):
+        """Mark a job application as failed with an error message."""
+        self._conn.execute(
+            "UPDATE applied_jobs SET status = 'failed', error_message = ? WHERE job_id = ?",
+            (error, job_id),
+        )
+        self._conn.commit()
+
+    def get_jobs_to_apply(self, threshold: float) -> list[dict]:
+        """Return jobs eligible for auto-apply (scored, has resume, not yet submitted)."""
+        rows = self._conn.execute(
+            """
+            SELECT s.* FROM seen_jobs s
+            WHERE s.match_score >= ?
+              AND s.resume_name IS NOT NULL
+              AND s.job_id NOT IN (
+                  SELECT job_id FROM applied_jobs WHERE status = 'submitted'
+              )
+            ORDER BY s.match_score DESC
+            """,
+            (threshold,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_application_status(self, job_id: str) -> dict | None:
+        """Fetch the application record for a job, or None if not found."""
+        row = self._conn.execute(
+            "SELECT * FROM applied_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+        return dict(row) if row else None
 
     def close(self):
         """Close the database connection."""

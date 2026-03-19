@@ -53,14 +53,15 @@ class GenAIClient:
             self._get_auth_token()
         return self._token
 
-    def chat(self, prompt: str) -> str:
+    def chat(self, prompt: str, system_role: str = None) -> str:
         """Send a prompt to the GenAI gateway and return the LLM's text response.
 
         Retries with exponential backoff (factor 1.5) on failure. Re-authenticates
         on 401. Raises RuntimeError after all retries are exhausted.
 
         Args:
-            prompt: The full prompt string to send to the LLM.
+            prompt:      The full prompt string to send to the LLM.
+            system_role: Optional system message. Defaults to job matching assistant.
 
         Returns:
             The LLM's raw text response.
@@ -81,7 +82,7 @@ class GenAIClient:
                     },
                     "query_type": "query",
                     "query": [
-                        {"role": "system", "content": "You are a job matching assistant."},
+                        {"role": "system", "content": system_role or "You are a job matching assistant."},
                         {"role": "user", "content": prompt},
                     ],
                     "customized_params": {"temperature": 0.2},

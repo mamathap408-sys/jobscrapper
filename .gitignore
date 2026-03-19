@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 data/
 certs/
+generated_resumes/
+applied_resumes/
