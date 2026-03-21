@@ -165,3 +165,9 @@ google:
 
 hcl:
   max_age_days: 2
+
+infosys:
+  max_age_days: 2
+
+goldmansachs:
+  max_age_days: 2

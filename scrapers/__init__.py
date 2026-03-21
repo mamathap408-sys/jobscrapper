@@ -20,6 +20,8 @@ from scrapers.cognizant import CognizantScraper
 from scrapers.successfactors import SuccessFactorsScraper
 from scrapers.google import GoogleScraper
 from scrapers.hcl import HCLScraper
+from scrapers.infosys import InfosysScraper
+from scrapers.goldmansachs import GoldmanSachsScraper
 
 # Maps the label used in urls.yaml → the scraper class to instantiate
 SCRAPER_REGISTRY: dict[str, type] = {
@@ -31,6 +33,8 @@ SCRAPER_REGISTRY: dict[str, type] = {
     "successfactors": SuccessFactorsScraper,
     "google": GoogleScraper,
     "hcl": HCLScraper,
+    "infosys": InfosysScraper,
+    "goldmansachs": GoldmanSachsScraper,
 }
 
 

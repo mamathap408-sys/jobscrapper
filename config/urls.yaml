@@ -71,8 +71,13 @@ successfactors | https://careers.ltimindtree.com
 # Google Careers (batchexecute RPC API — searches Bangalore + Hyderabad automatically)
 google | https://www.google.com/about/careers/applications/jobs/results
 
+# Infosys India (lateral + fresher)
+infosys | https://career.infosys.com/joblist?sourceId=1,21
+
+# Goldman Sachs (India — 285 Karnataka + 72 Telangana)
+goldmansachs | https://higher.gs.com/roles?location=India
+
 # --- NOT supported (no Workday JSON API) ---
-# Goldman Sachs   | https://higher.gs.com/results?page=1&sort=RELEVANCE (custom platform)
 # Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)
 # IBM             | https://www.ibm.com/in-en/careers/search (Avature)
 # TCS             | https://ibegin.tcsapps.com/candidate/jobs/search (custom)
@@ -83,7 +88,6 @@ google | https://www.google.com/about/careers/applications/jobs/results
 # Glean           | https://job-boards.greenhouse.io/gleanwork (Greenhouse)
 # Myntra          | https://jobs.myntra.com/home (custom)
 # Zepto           | https://zepto.talentrecruit.com/career-page (TalentRecruit)
-# Infosys         | https://career.infosys.com/jobs (custom)
 # Netflix         | https://jobs.netflix.com/ (Greenhouse)
 # ServiceNow      | https://careers.smartrecruiters.com/servicenow (SmartRecruiters)
 # Uber            | https://www.uber.com/us/en/careers/ (custom)

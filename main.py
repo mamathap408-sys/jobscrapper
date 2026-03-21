@@ -176,6 +176,12 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
     elif scraper_type == "hcl":
         hcl_cfg = config.get("hcl", {})
         return get_scraper(scraper_type, max_age_days=hcl_cfg.get("max_age_days"))
+    elif scraper_type == "infosys":
+        infy_cfg = config.get("infosys", {})
+        return get_scraper(scraper_type, max_age_days=infy_cfg.get("max_age_days"))
+    elif scraper_type == "goldmansachs":
+        gs_cfg = config.get("goldmansachs", {})
+        return get_scraper(scraper_type, max_age_days=gs_cfg.get("max_age_days"))
     else:
         return get_scraper(scraper_type)
 
