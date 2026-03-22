@@ -21,6 +21,9 @@ workday | https://broadcom.wd1.myworkdayjobs.com/en-US/External_Career
 workday | https://tibco.wd5.myworkdayjobs.com/en-US/Cloud_Software_Group
 workday | https://paypal.wd1.myworkdayjobs.com/en-US/jobs
 workday | https://snapchat.wd1.myworkdayjobs.com/snap
+workday | https://motorolasolutions.wd5.myworkdayjobs.com/en-US/Careers
+workday | https://automationanywhere.wd5.myworkdayjobs.com/AutomationAnywhereJobs
+workday | https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite
 
 # Semiconductors (121-238 India jobs)
 workday | https://micron.wd1.myworkdayjobs.com/External
@@ -39,6 +42,9 @@ workday | https://barclays.wd3.myworkdayjobs.com/External_Career_Site_Barclays
 workday | https://fmr.wd1.myworkdayjobs.com/FidelityCareers
 workday | https://capitalone.wd12.myworkdayjobs.com/Capital_One
 workday | https://cmegroup.wd1.myworkdayjobs.com/en-US/cme_careers
+workday | https://svb.wd5.myworkdayjobs.com/firstcitizensindia
+workday | https://lplfinancial.wd1.myworkdayjobs.com/India_Ext
+workday | https://nationwide.wd1.myworkdayjobs.com/en-US/Nationwide_Career_India
 
 # Industrial / Healthcare (16-708 India jobs)
 workday | https://philips.wd3.myworkdayjobs.com/en-US/jobs-and-careers
@@ -49,6 +55,8 @@ workday | https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS
 workday | https://geaerospace.wd5.myworkdayjobs.com/en-US/GE_ExternalSite
 workday | https://gehc.wd5.myworkdayjobs.com/en-US/GEHC_ExternalSite
 workday | https://alcon.wd5.myworkdayjobs.com/en-US/careers_alcon
+workday | https://amgen.wd1.myworkdayjobs.com/en-US/Careers
+workday | https://clarioclinical.wd1.myworkdayjobs.com/clarioclinical_careers
 
 # Consumer / Media (16-48 India jobs)
 workday | https://shell.wd3.myworkdayjobs.com/en-US/ShellCareers
@@ -56,6 +64,7 @@ workday | https://warnerbros.wd5.myworkdayjobs.com/global
 workday | https://unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals
 workday | https://fox.wd1.myworkdayjobs.com/Domestic
 workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
+workday | https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal
 
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 
@@ -76,6 +85,35 @@ infosys | https://career.infosys.com/joblist?sourceId=1,21
 
 # Goldman Sachs (India — 285 Karnataka + 72 Telangana)
 goldmansachs | https://higher.gs.com/roles?location=India
+
+# Greenhouse boards (new family scraper; use ?location= / ?department= / ?keyword= client-side filters)
+greenhouse | https://job-boards.greenhouse.io/devrev?location=bangalore
+greenhouse | https://job-boards.greenhouse.io/gleanwork?location=bangalore
+greenhouse | https://job-boards.greenhouse.io/doordashindia?location=hyderabad
+greenhouse | https://job-boards.greenhouse.io/poppulo?location=bangalore
+greenhouse | https://job-boards.greenhouse.io/celigo?location=hyderabad
+greenhouse | https://job-boards.greenhouse.io/konovo?location=bengaluru
+greenhouse | https://job-boards.greenhouse.io/crashplan?location=bengaluru
+
+# Lever boards (new family scraper; use ?location= / ?team= / ?commitment= / ?keyword= client-side filters)
+lever | https://jobs.lever.co/hevodata?location=bangalore
+lever | https://jobs.lever.co/jiostar?location=bangalore
+lever | https://jobs.lever.co/smarsh?location=bangalore
+lever | https://jobs.lever.co/dozee?location=bangalore
+lever | https://jobs.lever.co/parallelwireless?location=bangalore
+lever | https://jobs.lever.co/gushwork?location=bengaluru
+lever | https://jobs.lever.co/brillio-2?location=bangalore
+lever | https://jobs.lever.co/observeai?location=bangalore
+
+# Ashby boards (new family scraper; use ?location= / ?team= / ?department= / ?keyword= client-side filters)
+ashby | https://jobs.ashbyhq.com/ema?location=bengaluru
+ashby | https://jobs.ashbyhq.com/plane?location=hyderabad
+ashby | https://jobs.ashbyhq.com/notion?location=hyderabad
+ashby | https://jobs.ashbyhq.com/poshmark?location=chennai
+ashby | https://jobs.ashbyhq.com/uptimeai?location=bangalore
+ashby | https://jobs.ashbyhq.com/Commure?location=bengaluru
+ashby | https://jobs.ashbyhq.com/netgear?location=chennai
+ashby | https://jobs.ashbyhq.com/bespokelabs?location=bangalore
 
 # --- NOT supported (no Workday JSON API) ---
 # Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)

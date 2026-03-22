@@ -171,3 +171,12 @@ infosys:
 
 goldmansachs:
   max_age_days: 2
+
+greenhouse:
+  max_age_days: 14
+
+lever:
+  max_age_days: 14
+
+ashby:
+  max_age_days: 14
