@@ -4,15 +4,14 @@ from scrapers.lever import LeverScraper
 
 
 def test_extract_site():
-    url = "https://jobs.lever.co/hevodata?location=bangalore"
+    url = "https://jobs.lever.co/hevodata?team=engineering"
     assert LeverScraper._extract_site(url) == "hevodata"
 
 
 def test_build_filters():
-    url = "https://jobs.lever.co/hevodata?location=bangalore&team=engineering&commitment=full-time&keyword=python"
+    url = "https://jobs.lever.co/hevodata?team=engineering&commitment=full-time&keyword=python"
     filters = LeverScraper._build_filters(url)
     assert filters == {
-        "location": "bangalore",
         "team": "engineering",
         "commitment": "full-time",
         "keyword": "python",
@@ -70,10 +69,69 @@ def test_matches_filters():
     )
     assert job is not None
     filters = {
-        "location": "bangalore",
         "team": "engineering",
         "commitment": "full-time",
         "keyword": "python",
     }
     assert scraper._matches_filters(job, item, filters) is True
+    scraper.close()
+
+
+def test_matches_target_cities():
+    scraper = LeverScraper()
+    blr_job = scraper._parse_job(
+        {
+            "id": "lever-3",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/lever-3",
+            "categories": {"location": "Bangalore, India"},
+        },
+        "Example",
+    )
+    hyd_job = scraper._parse_job(
+        {
+            "id": "lever-4",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/lever-4",
+            "categories": {"location": "Hyderabad, India"},
+        },
+        "Example",
+    )
+    pune_job = scraper._parse_job(
+        {
+            "id": "lever-5",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/lever-5",
+            "categories": {"location": "Pune, India"},
+        },
+        "Example",
+    )
+    remote_job = scraper._parse_job(
+        {
+            "id": "lever-6",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/lever-6",
+            "categories": {"location": "Remote"},
+        },
+        "Example",
+    )
+    empty_location_job = scraper._parse_job(
+        {
+            "id": "lever-7",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/lever-7",
+            "categories": {},
+        },
+        "Example",
+    )
+    assert blr_job is not None
+    assert hyd_job is not None
+    assert pune_job is not None
+    assert remote_job is not None
+    assert empty_location_job is not None
+    assert scraper._matches_target_cities(blr_job) is True
+    assert scraper._matches_target_cities(hyd_job) is True
+    assert scraper._matches_target_cities(pune_job) is False
+    assert scraper._matches_target_cities(remote_job) is True
+    assert scraper._matches_target_cities(empty_location_job) is True
     scraper.close()

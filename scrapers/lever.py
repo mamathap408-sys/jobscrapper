@@ -8,8 +8,11 @@ How it works:
   - API: https://api.lever.co/v0/postings/{site}?mode=json
   - No authentication needed for public postings
 
+The scraper filters internally to target India cities by default:
+  - Bengaluru / Bangalore
+  - Hyderabad
+
 Optional client-side filters can be provided in the board URL query string:
-  - location=bangalore
   - team=engineering
   - commitment=full-time
   - keyword=python
@@ -27,6 +30,11 @@ from scrapers.base import BaseScraper, JobPosting
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.lever.co/v0/postings"
+_DEFAULT_CITY_ALIASES = {
+    "bengaluru",
+    "bangalore",
+    "hyderabad",
+}
 
 
 def _strip_html(html: str) -> str:
@@ -45,7 +53,8 @@ def _normalize_company(token: str) -> str:
 class LeverScraper(BaseScraper):
     """Scrapes Lever job boards via the public postings API."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
+    def __init__(self, cities: list[str] | None = None, max_age_days: int | None = None, **kwargs):
+        self._cities = {city.strip().lower() for city in (cities or sorted(_DEFAULT_CITY_ALIASES)) if city.strip()}
         self._max_age_days = max_age_days
         self._client = httpx.Client(
             timeout=30,
@@ -85,6 +94,8 @@ class LeverScraper(BaseScraper):
             job = self._parse_job(item, company)
             if not job:
                 continue
+            if not self._matches_target_cities(job):
+                continue
             if not self._matches_filters(job, item, filters):
                 continue
             if self._max_age_days is not None and not self._within_age(job.posted_date, now):
@@ -108,7 +119,6 @@ class LeverScraper(BaseScraper):
         """Extract supported client-side filters from the URL query string."""
         params = parse_qs(urlparse(url).query)
         return {
-            "location": params.get("location", [""])[0].strip().lower(),
             "team": params.get("team", [""])[0].strip().lower(),
             "commitment": params.get("commitment", [""])[0].strip().lower(),
             "keyword": params.get("keyword", [""])[0].strip().lower(),
@@ -176,11 +186,8 @@ class LeverScraper(BaseScraper):
             return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
-        """Apply location/team/commitment/keyword filters from the board URL."""
+        """Apply team/commitment/keyword filters from the board URL."""
         categories = raw_item.get("categories") if isinstance(raw_item.get("categories"), dict) else {}
-
-        if filters["location"] and filters["location"] not in (job.location or "").lower():
-            return False
 
         if filters["team"]:
             if filters["team"] not in str(categories.get("team", "")).lower():
@@ -198,6 +205,13 @@ class LeverScraper(BaseScraper):
                 return False
 
         return True
+
+    def _matches_target_cities(self, job: JobPosting) -> bool:
+        """Keep target-city jobs plus remote/unspecified jobs."""
+        haystack = (job.location or "").lower()
+        if not haystack.strip():
+            return True
+        return any(city in haystack for city in self._cities) or "remote" in haystack
 
     def _within_age(self, posted_date: str, now: datetime) -> bool:
         """Check if a posted date is within max_age_days."""

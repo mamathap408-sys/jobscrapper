@@ -38,8 +38,8 @@ A scheduled job scraper that monitors career portals (Workday, Amazon Jobs, Goog
 | **Cognizant** | Parses Cognizant's public XML/RSS feed. Filters by city after parsing. | No |
 | **SuccessFactors** | RSS feed scraper for SAP SuccessFactors-powered sites (Wipro, Capgemini, etc.). | No |
 | **HCL** | JSON API for HCLTech's SuccessFactors instance (RSS doesn't support location filtering). | No |
-| **Greenhouse** | Public Job Board API for Greenhouse boards. Supports client-side location/department/keyword filters from `urls.yaml`. | No |
-| **Lever** | Public postings API for Lever boards. Supports client-side location/team/commitment filters from `urls.yaml`. | No |
+| **Greenhouse** | Public Job Board API for Greenhouse boards. Filters to Bengaluru/Bangalore/Hyderabad in the scraper and supports optional department/keyword filters from `urls.yaml`. | No |
+| **Lever** | Public postings API for Lever boards. Filters to Bengaluru/Bangalore/Hyderabad in the scraper and supports optional team/commitment filters from `urls.yaml`. | No |
 | **Ashby** | Public job board API for Ashby boards. Supports client-side location/team/department filters from `urls.yaml`. | No |
 | **Generic** | Playwright headless Chromium — scrolls page and finds job links via CSS selectors. | Yes |
 
@@ -166,11 +166,11 @@ successfactors | https://wipro.eightfold.ai/services/rss/job/?locale=en_US
 # HCLTech JSON API
 hcl | https://careers.hcltech.com/
 
-# Greenhouse board with client-side filters
-greenhouse | https://job-boards.greenhouse.io/devrev?location=bangalore&department=engineering
+# Greenhouse board (Bengaluru/Bangalore/Hyderabad filtering happens inside the scraper)
+greenhouse | https://job-boards.greenhouse.io/devrev?department=engineering
 
-# Lever board with client-side filters
-lever | https://jobs.lever.co/hevodata?location=bangalore&team=engineering
+# Lever board (Bengaluru/Bangalore/Hyderabad filtering happens inside the scraper)
+lever | https://jobs.lever.co/hevodata?team=engineering
 
 # Ashby board with client-side filters
 ashby | https://jobs.ashbyhq.com/ema?location=bengaluru&department=engineering

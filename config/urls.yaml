@@ -86,34 +86,34 @@ infosys | https://career.infosys.com/joblist?sourceId=1,21
 # Goldman Sachs (India — 285 Karnataka + 72 Telangana)
 goldmansachs | https://higher.gs.com/roles?location=India
 
-# Greenhouse boards (new family scraper; use ?location= / ?department= / ?keyword= client-side filters)
-greenhouse | https://job-boards.greenhouse.io/devrev?location=bangalore
-greenhouse | https://job-boards.greenhouse.io/gleanwork?location=bangalore
-greenhouse | https://job-boards.greenhouse.io/doordashindia?location=hyderabad
-greenhouse | https://job-boards.greenhouse.io/poppulo?location=bangalore
-greenhouse | https://job-boards.greenhouse.io/celigo?location=hyderabad
-greenhouse | https://job-boards.greenhouse.io/konovo?location=bengaluru
-greenhouse | https://job-boards.greenhouse.io/crashplan?location=bengaluru
+# Greenhouse boards (scraper filters to Bengaluru/Bangalore/Hyderabad internally)
+greenhouse | https://job-boards.greenhouse.io/devrev
+greenhouse | https://job-boards.greenhouse.io/gleanwork
+greenhouse | https://job-boards.greenhouse.io/doordashindia
+greenhouse | https://job-boards.greenhouse.io/poppulo
+greenhouse | https://job-boards.greenhouse.io/celigo
+greenhouse | https://job-boards.greenhouse.io/konovo
+greenhouse | https://job-boards.greenhouse.io/crashplan
 
-# Lever boards (new family scraper; use ?location= / ?team= / ?commitment= / ?keyword= client-side filters)
-lever | https://jobs.lever.co/hevodata?location=bangalore
-lever | https://jobs.lever.co/jiostar?location=bangalore
-lever | https://jobs.lever.co/smarsh?location=bangalore
-lever | https://jobs.lever.co/dozee?location=bangalore
-lever | https://jobs.lever.co/parallelwireless?location=bangalore
-lever | https://jobs.lever.co/gushwork?location=bengaluru
-lever | https://jobs.lever.co/brillio-2?location=bangalore
-lever | https://jobs.lever.co/observeai?location=bangalore
+## Lever boards (scraper filters to Bengaluru/Bangalore/Hyderabad internally)
+lever | https://jobs.lever.co/hevodata
+lever | https://jobs.lever.co/jiostar
+lever | https://jobs.lever.co/smarsh
+lever | https://jobs.lever.co/dozee
+lever | https://jobs.lever.co/parallelwireless
+lever | https://jobs.lever.co/gushwork
+lever | https://jobs.lever.co/brillio-2
+lever | https://jobs.lever.co/observeai
 
-# Ashby boards (new family scraper; use ?location= / ?team= / ?department= / ?keyword= client-side filters)
-ashby | https://jobs.ashbyhq.com/ema?location=bengaluru
-ashby | https://jobs.ashbyhq.com/plane?location=hyderabad
-ashby | https://jobs.ashbyhq.com/notion?location=hyderabad
-ashby | https://jobs.ashbyhq.com/poshmark?location=chennai
-ashby | https://jobs.ashbyhq.com/uptimeai?location=bangalore
-ashby | https://jobs.ashbyhq.com/Commure?location=bengaluru
-ashby | https://jobs.ashbyhq.com/netgear?location=chennai
-ashby | https://jobs.ashbyhq.com/bespokelabs?location=bangalore
+## Ashby boards (scraper filters to Bengaluru/Bangalore/Hyderabad internally)
+ashby | https://jobs.ashbyhq.com/ema
+ashby | https://jobs.ashbyhq.com/plane
+ashby | https://jobs.ashbyhq.com/notion
+ashby | https://jobs.ashbyhq.com/poshmark
+ashby | https://jobs.ashbyhq.com/uptimeai
+ashby | https://jobs.ashbyhq.com/Commure
+ashby | https://jobs.ashbyhq.com/netgear
+ashby | https://jobs.ashbyhq.com/bespokelabs
 
 # --- NOT supported (no Workday JSON API) ---
 # Apple           | https://jobs.apple.com/en-in/search?location=bengaluru-BGS (custom Workday, no public API)

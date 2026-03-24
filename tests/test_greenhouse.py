@@ -4,15 +4,14 @@ from scrapers.greenhouse import GreenhouseScraper
 
 
 def test_extract_board_token():
-    url = "https://job-boards.greenhouse.io/devrev?location=bangalore"
+    url = "https://job-boards.greenhouse.io/devrev?department=engineering"
     assert GreenhouseScraper._extract_board_token(url) == "devrev"
 
 
 def test_build_filters():
-    url = "https://job-boards.greenhouse.io/devrev?location=bangalore&department=engineering&keyword=python"
+    url = "https://job-boards.greenhouse.io/devrev?department=engineering&keyword=python"
     filters = GreenhouseScraper._build_filters(url)
     assert filters == {
-        "location": "bangalore",
         "department": "engineering",
         "keyword": "python",
     }
@@ -59,9 +58,72 @@ def test_matches_filters():
     )
     assert job is not None
     filters = {
-        "location": "bangalore",
         "department": "engineering",
         "keyword": "python",
     }
     assert scraper._matches_filters(job, item, filters) is True
+    scraper.close()
+
+
+def test_matches_target_cities():
+    scraper = GreenhouseScraper()
+    blr_job = scraper._parse_job(
+        {
+            "id": 2,
+            "title": "Engineer",
+            "absolute_url": "https://example.com/jobs/2",
+            "location": {"name": "Bangalore, India"},
+            "content": "",
+        },
+        "Example",
+    )
+    hyd_job = scraper._parse_job(
+        {
+            "id": 3,
+            "title": "Engineer",
+            "absolute_url": "https://example.com/jobs/3",
+            "location": {"name": "Hyderabad, India"},
+            "content": "",
+        },
+        "Example",
+    )
+    chennai_job = scraper._parse_job(
+        {
+            "id": 4,
+            "title": "Engineer",
+            "absolute_url": "https://example.com/jobs/4",
+            "location": {"name": "Chennai, India"},
+            "content": "",
+        },
+        "Example",
+    )
+    remote_job = scraper._parse_job(
+        {
+            "id": 5,
+            "title": "Engineer",
+            "absolute_url": "https://example.com/jobs/5",
+            "location": {"name": "Remote"},
+            "content": "",
+        },
+        "Example",
+    )
+    empty_location_job = scraper._parse_job(
+        {
+            "id": 6,
+            "title": "Engineer",
+            "absolute_url": "https://example.com/jobs/6",
+            "content": "",
+        },
+        "Example",
+    )
+    assert blr_job is not None
+    assert hyd_job is not None
+    assert chennai_job is not None
+    assert remote_job is not None
+    assert empty_location_job is not None
+    assert scraper._matches_target_cities(blr_job, {}) is True
+    assert scraper._matches_target_cities(hyd_job, {}) is True
+    assert scraper._matches_target_cities(chennai_job, {}) is False
+    assert scraper._matches_target_cities(remote_job, {}) is True
+    assert scraper._matches_target_cities(empty_location_job, {}) is True
     scraper.close()

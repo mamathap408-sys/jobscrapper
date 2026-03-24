@@ -184,13 +184,25 @@ def _create_scraper(scraper_type: str, config: dict, url: str, browser, wd_locat
         return get_scraper(scraper_type, max_age_days=gs_cfg.get("max_age_days"))
     elif scraper_type == "greenhouse":
         gh_cfg = config.get("greenhouse", {})
-        return get_scraper(scraper_type, max_age_days=gh_cfg.get("max_age_days"))
+        return get_scraper(
+            scraper_type,
+            cities=gh_cfg.get("cities"),
+            max_age_days=gh_cfg.get("max_age_days"),
+        )
     elif scraper_type == "lever":
         lever_cfg = config.get("lever", {})
-        return get_scraper(scraper_type, max_age_days=lever_cfg.get("max_age_days"))
+        return get_scraper(
+            scraper_type,
+            cities=lever_cfg.get("cities"),
+            max_age_days=lever_cfg.get("max_age_days"),
+        )
     elif scraper_type == "ashby":
         ashby_cfg = config.get("ashby", {})
-        return get_scraper(scraper_type, max_age_days=ashby_cfg.get("max_age_days"))
+        return get_scraper(
+            scraper_type,
+            cities=ashby_cfg.get("cities"),
+            max_age_days=ashby_cfg.get("max_age_days"),
+        )
     else:
         return get_scraper(scraper_type)
 

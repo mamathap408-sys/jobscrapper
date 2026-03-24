@@ -8,9 +8,11 @@ How it works:
   - API: https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs?content=true
   - No authentication needed for public boards
 
-The scraper accepts a board URL in urls.yaml and optional query params that are
-used as client-side filters:
-  - location=bangalore
+The scraper filters internally to target India cities by default:
+  - Bengaluru / Bangalore
+  - Hyderabad
+
+Optional client-side filters can still be provided in the board URL query string:
   - department=engineering
   - keyword=python
 """
@@ -27,6 +29,11 @@ from scrapers.base import BaseScraper, JobPosting
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://boards-api.greenhouse.io/v1/boards"
+_DEFAULT_CITY_ALIASES = {
+    "bengaluru",
+    "bangalore",
+    "hyderabad",
+}
 
 
 def _strip_html(html: str) -> str:
@@ -45,7 +52,8 @@ def _normalize_company(token: str) -> str:
 class GreenhouseScraper(BaseScraper):
     """Scrapes Greenhouse job boards via the public Job Board API."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
+    def __init__(self, cities: list[str] | None = None, max_age_days: int | None = None, **kwargs):
+        self._cities = {city.strip().lower() for city in (cities or sorted(_DEFAULT_CITY_ALIASES)) if city.strip()}
         self._max_age_days = max_age_days
         self._client = httpx.Client(
             timeout=30,
@@ -87,6 +95,8 @@ class GreenhouseScraper(BaseScraper):
             job = self._parse_job(item, company)
             if not job:
                 continue
+            if not self._matches_target_cities(job, item):
+                continue
             if not self._matches_filters(job, item, filters):
                 continue
             if self._max_age_days is not None and not self._within_age(job.posted_date, now):
@@ -110,7 +120,6 @@ class GreenhouseScraper(BaseScraper):
         """Extract supported client-side filters from the URL query string."""
         params = parse_qs(urlparse(url).query)
         return {
-            "location": params.get("location", [""])[0].strip().lower(),
             "department": params.get("department", [""])[0].strip().lower(),
             "keyword": params.get("keyword", [""])[0].strip().lower(),
         }
@@ -187,10 +196,7 @@ class GreenhouseScraper(BaseScraper):
             return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
-        """Apply location/department/keyword filters from the board URL."""
-        if filters["location"] and filters["location"] not in (job.location or "").lower():
-            return False
-
+        """Apply department/keyword filters from the board URL."""
         if filters["department"]:
             departments = raw_item.get("departments") or []
             department_text = " ".join(
@@ -209,6 +215,19 @@ class GreenhouseScraper(BaseScraper):
                 return False
 
         return True
+
+    def _matches_target_cities(self, job: JobPosting, raw_item: dict) -> bool:
+        """Keep target-city jobs plus remote/unspecified jobs."""
+        haystacks = [job.location or ""]
+        for office in raw_item.get("offices") or []:
+            if isinstance(office, dict):
+                haystacks.append(str(office.get("name", "")))
+                haystacks.append(str(office.get("location", "")))
+
+        combined = " ".join(haystacks).lower()
+        if not combined.strip():
+            return True
+        return any(city in combined for city in self._cities) or "remote" in combined
 
     def _within_age(self, posted_date: str, now: datetime) -> bool:
         """Check if a posted date is within max_age_days."""

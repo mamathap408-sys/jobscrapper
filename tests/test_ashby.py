@@ -4,15 +4,14 @@ from scrapers.ashby import AshbyScraper
 
 
 def test_extract_organization():
-    url = "https://jobs.ashbyhq.com/ema?location=bengaluru"
+    url = "https://jobs.ashbyhq.com/ema?department=engineering"
     assert AshbyScraper._extract_organization(url) == "ema"
 
 
 def test_build_filters():
-    url = "https://jobs.ashbyhq.com/ema?location=bengaluru&team=platform&department=engineering&keyword=python"
+    url = "https://jobs.ashbyhq.com/ema?team=platform&department=engineering&keyword=python"
     filters = AshbyScraper._build_filters(url)
     assert filters == {
-        "location": "bengaluru",
         "team": "platform",
         "department": "engineering",
         "keyword": "python",
@@ -67,10 +66,57 @@ def test_matches_filters():
     )
     assert job is not None
     filters = {
-        "location": "bengaluru",
         "team": "platform",
         "department": "engineering",
         "keyword": "python",
     }
     assert scraper._matches_filters(job, item, filters) is True
+    scraper.close()
+
+
+def test_matches_target_cities():
+    scraper = AshbyScraper()
+    bengaluru_job = scraper._parse_job(
+        {
+            "id": "ashby-3",
+            "title": "Engineer",
+            "jobUrl": "https://jobs.ashbyhq.com/example/ashby-3",
+            "location": {"name": "Bengaluru, India"},
+        },
+        "Example",
+    )
+    chennai_job = scraper._parse_job(
+        {
+            "id": "ashby-4",
+            "title": "Engineer",
+            "jobUrl": "https://jobs.ashbyhq.com/example/ashby-4",
+            "location": {"name": "Chennai, India"},
+        },
+        "Example",
+    )
+    remote_job = scraper._parse_job(
+        {
+            "id": "ashby-5",
+            "title": "Engineer",
+            "jobUrl": "https://jobs.ashbyhq.com/example/ashby-5",
+            "location": {"name": "Remote"},
+        },
+        "Example",
+    )
+    empty_location_job = scraper._parse_job(
+        {
+            "id": "ashby-6",
+            "title": "Engineer",
+            "jobUrl": "https://jobs.ashbyhq.com/example/ashby-6",
+        },
+        "Example",
+    )
+    assert bengaluru_job is not None
+    assert chennai_job is not None
+    assert remote_job is not None
+    assert empty_location_job is not None
+    assert scraper._matches_target_cities(bengaluru_job) is True
+    assert scraper._matches_target_cities(chennai_job) is False
+    assert scraper._matches_target_cities(remote_job) is True
+    assert scraper._matches_target_cities(empty_location_job) is True
     scraper.close()
