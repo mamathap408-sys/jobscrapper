@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Send up to 5 jobs per LLM call to reduce API usage and costs
 _BATCH_SIZE = 5
+_MAX_JOB_DESCRIPTION_CHARS = 20000
 
 
 def _build_profile_text(profiles: list[JobProfile]) -> str:
@@ -58,7 +59,7 @@ def _build_profile_text(profiles: list[JobProfile]) -> str:
 def _build_jobs_text(jobs: list[JobPosting]) -> str:
     """Format a batch of job postings into a numbered text block for the LLM prompt.
 
-    Each job's description is truncated to 1500 chars to stay within token limits.
+    Oversized job descriptions are truncated to stay within prompt limits.
 
     Args:
         jobs: List of JobPosting objects to include in the prompt.
@@ -69,11 +70,17 @@ def _build_jobs_text(jobs: list[JobPosting]) -> str:
     parts = []
     for i, job in enumerate(jobs, 1):
         desc = job.description if job.description else "(no description available)"
-        if len(desc) > 20000:
-            raise ValueError(
-                f"Job description too long ({len(desc)} chars) for job '{job.title}' "
-                f"(ID: {job.job_id}). First 200 chars: {desc[:200]}"
+        if len(desc) > _MAX_JOB_DESCRIPTION_CHARS:
+            logger.warning(
+                "Trimming job description from %s to %s chars for job '%s' (ID: %s). "
+                "First 200 chars: %s",
+                len(desc),
+                _MAX_JOB_DESCRIPTION_CHARS,
+                job.title,
+                job.job_id,
+                desc[:200],
             )
+            desc = desc[:_MAX_JOB_DESCRIPTION_CHARS]
         desc_preview = desc
         parts.append(
             f"--- Job {i} ---\n"

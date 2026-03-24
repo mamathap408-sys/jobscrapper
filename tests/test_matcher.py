@@ -68,6 +68,21 @@ def test_build_jobs_text():
     assert "Job 2" in text
 
 
+def test_build_jobs_text_trims_long_description_and_logs_warning():
+    long_description = "x" * 20005
+    jobs = [_sample_job()]
+    jobs[0].description = long_description
+
+    with patch("services.matcher.logger.warning") as mock_warning:
+        text = _build_jobs_text(jobs)
+
+    assert long_description[:20000] in text
+    assert long_description not in text
+    mock_warning.assert_called_once()
+    assert "Trimming job description from %s to %s chars" in mock_warning.call_args[0][0]
+    assert mock_warning.call_args[0][1:3] == (20005, 20000)
+
+
 def test_matcher_with_mock_gateway():
     """Test matcher end-to-end with a mocked GenAI Gateway."""
     # Mock the gateway chat response (Claude format)
@@ -122,6 +137,6 @@ def test_matcher_with_mock_gateway():
 if __name__ == "__main__":
     test_build_profile_text()
     test_build_jobs_text()
+    test_build_jobs_text_trims_long_description_and_logs_warning()
     test_matcher_with_mock_gateway()
     print("All matcher tests passed!")
-
