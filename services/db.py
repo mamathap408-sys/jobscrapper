@@ -84,6 +84,13 @@ class JobDatabase:
                 FOREIGN KEY (job_id) REFERENCES seen_jobs(job_id)
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+            )
+        """)
         self._conn.commit()
 
     def is_seen(self, job_id: str) -> bool:
@@ -227,12 +234,36 @@ class JobDatabase:
         self._conn.commit()
 
     def get_last_resume_name(self) -> str | None:
-        """Return the latest resume_name by sequence order, or None if none exist."""
+        """Return the latest generated resume name from durable state.
+
+        Falls back to seen_jobs for older databases that predate app_state.
+        """
+        row = self._conn.execute(
+            "SELECT value FROM app_state WHERE key = 'last_resume_name'"
+        ).fetchone()
+        if row:
+            return row[0]
+
         row = self._conn.execute(
             "SELECT resume_name FROM seen_jobs WHERE resume_name IS NOT NULL "
             "ORDER BY length(resume_name) DESC, resume_name DESC LIMIT 1"
         ).fetchone()
         return row[0] if row else None
+
+    def set_last_resume_name(self, resume_name: str):
+        """Persist the latest generated resume name independently of seen_jobs."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            """
+            INSERT INTO app_state (key, value, updated_at)
+            VALUES ('last_resume_name', ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+            """,
+            (resume_name, now),
+        )
+        self._conn.commit()
 
     def get_jobs_needing_resume(self, threshold: float) -> list[dict]:
         """Return matched jobs above threshold that don't have a resume yet."""

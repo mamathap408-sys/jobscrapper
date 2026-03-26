@@ -39,6 +39,7 @@ You will receive a base LaTeX resume and a job description. Make MINIMAL, surgic
 3. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
 4. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
 5. **Education & Additional**: Copy EXACTLY as-is. Zero changes.
+6. **Section order**: If the target role clearly matches the candidate's previous experience, move **Experience** ahead of **Technical Skills** and **Projects** so the order is: Experience, Technical Skills, Projects. Otherwise keep the original section order.
 
 ## Critical constraints
 - Keep changes minimal and natural. If the base resume already matches well, return it nearly unchanged.
@@ -224,6 +225,8 @@ class ResumeBuilder:
         # Generate unique filename
         seq = self._next_sequence()
         resume_name = f"resume_{seq}"
+        self._db.set_last_resume_name(resume_name)
+        logger.debug("Reserved next resume sequence as '%s'", resume_name)
         tex_path = OUTPUT_DIR / f"{resume_name}.tex"
 
         tex_path.write_text(tailored_tex, encoding="utf-8")

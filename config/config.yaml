@@ -127,7 +127,7 @@ email:
 
 resume_builder:
   threshold: 7                       # generate resumes for jobs scoring > this
-  base_resume: "data/resume_v2.tex"
+  base_resume: "data/resume_v3_onepage.tex"
   attach_resume: true               # when true, generate + attach PDFs before sending email
   tex_bin: "/Library/TeX/texbin"     # path to TeX binaries (pdflatex), added to PATH if set
 
@@ -173,10 +173,22 @@ goldmansachs:
   max_age_days: 2
 
 greenhouse:
+  cities:
+    - Bengaluru
+    - Bangalore
+    - Hyderabad
   max_age_days: 14
 
 lever:
+  cities:
+    - Bengaluru
+    - Bangalore
+    - Hyderabad
   max_age_days: 14
 
 ashby:
+  cities:
+    - Bengaluru
+    - Bangalore
+    - Hyderabad
   max_age_days: 14
