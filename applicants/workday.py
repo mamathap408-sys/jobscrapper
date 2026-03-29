@@ -65,7 +65,8 @@ _TIMEOUT = 15_000
 # against new portals.
 _SEL = {
     # Job page
-    "apply_btn":        '[data-automation-id="jobPostingApplyButton"]',
+    "apply_btn":        '[data-automation-id="jobPostingApplyButton"], [data-automation-id="adventureButton"]',
+    "autofill_resume":  '[data-automation-id="autofillWithResume"]',
 
     # Auth page
     "create_account":   '[data-automation-id="createAccountLink"]',
@@ -240,7 +241,7 @@ class WorkdayApplicant:
 
         try:
             # Step 1: Navigate to job page and click Apply
-            self._page.goto(job_url, wait_until="domcontentloaded", timeout=30_000)
+            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
             self._click_apply_button()
 
             # Step 2: Handle authentication
@@ -258,11 +259,13 @@ class WorkdayApplicant:
     # ── Step 1: Click Apply ────────────────────────────────────
 
     def _click_apply_button(self):
-        """Find and click the Apply button on the job posting page."""
-        btn = self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
-        if not btn:
-            raise WorkdayApplyError("Apply button not found")
-        btn.click()
+        """Find and click the Apply button, then select 'Autofill with Resume'."""
+        self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT).click()
+
+        # Handle "Start Your Application" modal
+        autofill_btn = self._page.wait_for_selector(_SEL["autofill_resume"], timeout=_TIMEOUT)
+        logger.info("Application modal detected — choosing 'Autofill with Resume'")
+        autofill_btn.click()
         self._page.wait_for_load_state("domcontentloaded")
 
     # ── Step 2: Authentication ─────────────────────────────────
