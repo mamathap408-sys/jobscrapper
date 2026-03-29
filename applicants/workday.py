@@ -20,7 +20,9 @@ import json
 import logging
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeout
 
 from services.genai_client import GenAIClient
@@ -104,6 +106,30 @@ _SEL = {
     "decline_option":   'text="Decline To Self Identify"',
 }
 
+def _parse_job_url(url: str) -> tuple[str, str]:
+    """Parse a full Workday job page URL into (api_base, external_path).
+
+    Example:
+        Input:  https://wf.wd1.myworkdayjobs.com/WellsFargoJobs/job/Bengaluru-India/Finance_R-123
+        Output: ("https://wf.wd1.myworkdayjobs.com/wday/cxs/wf/WellsFargoJobs",
+                 "/job/Bengaluru-India/Finance_R-123")
+    """
+    parsed = urlparse(url)
+    company = parsed.hostname.split(".")[0]
+    path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+    # Filter out locale segments like "en-US"
+    path_parts = [p for p in path_parts if not re.match(r"^[a-z]{2}-[A-Z]{2}$", p)]
+    if "job" in path_parts:
+        job_idx = path_parts.index("job")
+        site = path_parts[job_idx - 1] if job_idx > 0 else path_parts[0]
+        external_path = "/" + "/".join(path_parts[job_idx:])
+    else:
+        site = path_parts[0] if path_parts else "External"
+        external_path = ""
+    api_base = f"{parsed.scheme}://{parsed.hostname}/wday/cxs/{company}/{site}"
+    return api_base, external_path
+
+
 _SYSTEM_ROLE = (
     "You are a job application assistant. Answer application questions "
     "truthfully and concisely based on the provided candidate profile."
@@ -135,6 +161,14 @@ class WorkdayApplicant:
         self._context = None
         self._page: Page | None = None
         self._genai: GenAIClient | None = None
+        self._http = httpx.Client(
+            timeout=15,
+            verify=False,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            },
+        )
 
     # ── Lifecycle ──────────────────────────────────────────────
 
@@ -156,7 +190,36 @@ class WorkdayApplicant:
             self._browser.close()
         if self._pw:
             self._pw.stop()
+        if self._http:
+            self._http.close()
         logger.info("Browser closed")
+
+    def is_job_valid(self, job_url: str) -> bool:
+        """Check if a Workday job posting is still active via the JSON API.
+
+        Workday returns 200 with jobPostingInfo for active jobs, and 403 for
+        expired/removed postings.
+
+        Args:
+            job_url: Full Workday job page URL.
+
+        Returns:
+            True if the job is still active, False if expired/removed/unreachable.
+        """
+        api_base, external_path = _parse_job_url(job_url)
+        if not external_path:
+            logger.warning("Could not parse external_path from URL: %s", job_url)
+            return False
+        try:
+            resp = self._http.get(f"{api_base}{external_path}")
+            if resp.status_code != 200:
+                logger.info("Job no longer valid (HTTP %d): %s", resp.status_code, job_url)
+                return False
+            data = resp.json()
+            return "jobPostingInfo" in data
+        except (httpx.HTTPError, ValueError) as e:
+            logger.warning("Job validity check failed for %s: %s", job_url, e)
+            return False
 
     # ── Main orchestration ─────────────────────────────────────
 

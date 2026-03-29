@@ -205,6 +205,14 @@ def main():
                     db.create_application(job_id)
 
                     try:
+                        # Check if job is still active before applying
+                        if not applicant.is_job_valid(job["url"]):
+                            logger.info("Skipping expired job [%d/%d]: %s at %s",
+                                        job_num, total, job["title"], job["company"])
+                            db.mark_expired(job_id)
+                            failed += 1
+                            continue
+
                         # Prepare resume (recompile if emails differ)
                         pdf_path = prepare_resume(
                             job["resume_name"], apply_email, resume_email, tex_bin

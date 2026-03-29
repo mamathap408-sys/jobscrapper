@@ -298,22 +298,30 @@ class JobDatabase:
         self._conn.commit()
 
     def mark_apply_failed(self, job_id: str, error: str):
-        """Mark a job application as failed with an error message."""
+        """Mark a job application as failed with an error message (retryable)."""
         self._conn.execute(
             "UPDATE applied_jobs SET status = 'failed', error_message = ? WHERE job_id = ?",
             (error, job_id),
         )
         self._conn.commit()
 
+    def mark_expired(self, job_id: str):
+        """Mark a job as expired/removed (non-retryable)."""
+        self._conn.execute(
+            "UPDATE applied_jobs SET status = 'expired', error_message = 'Job no longer active' WHERE job_id = ?",
+            (job_id,),
+        )
+        self._conn.commit()
+
     def get_jobs_to_apply(self, threshold: float) -> list[dict]:
-        """Return jobs eligible for auto-apply (scored, has resume, not yet submitted)."""
+        """Return jobs eligible for auto-apply (scored, has resume, not yet submitted/expired)."""
         rows = self._conn.execute(
             """
             SELECT s.* FROM seen_jobs s
             WHERE s.match_score >= ?
               AND s.resume_name IS NOT NULL
               AND s.job_id NOT IN (
-                  SELECT job_id FROM applied_jobs WHERE status = 'submitted'
+                  SELECT job_id FROM applied_jobs WHERE status IN ('submitted', 'expired')
               )
             ORDER BY s.match_score DESC
             """,
