@@ -4,14 +4,17 @@ applicants/workday.py — Workday Auto-Apply Engine
 Automates job application submission on Workday career portals using Playwright.
 
 Flow per job:
-  1. Navigate to job URL → click "Apply"
-  2. Handle sign-in or account creation
-  3. Fill personal information (name, email, phone, address)
-  4. Upload tailored resume PDF
-  5. Fill work history and education
-  6. Answer screening questions (Q&A lookup → LLM fallback)
-  7. Handle voluntary self-identification (decline all)
-  8. Review and submit
+  1. Navigate to job URL → click "Apply" → "Autofill with Resume"
+  2. Handle sign-in (auto via career_sites_credentials.yaml or manual)
+  3. Upload resume PDF
+  4. Fill pages dynamically: workday_fields mapping → AI fallback for unknowns
+  5. Submit on final review page
+
+Form filling uses a generic page scanner that:
+  - Detects all form fields (text, select, radio, textarea)
+  - Fills known fields from workday_fields in answers.yaml (keyed by data-automation-id)
+  - Skips optional fields not in the mapping
+  - Falls back to LLM for unknown required fields
 
 On any failure: raises WorkdayApplyError → caller skips to next job.
 """
@@ -29,20 +32,6 @@ from playwright.sync_api import sync_playwright, Page, TimeoutError as Playwrigh
 from services.genai_client import GenAIClient
 
 logger = logging.getLogger(__name__)
-
-
-def _normalize_question(text: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace."""
-    text = text.lower().strip()
-    text = re.sub(r"[^\w\s]", "", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def _build_qa_index(qa: dict) -> dict:
-    """Normalize Q&A keys for fuzzy matching."""
-    return {_normalize_question(k): v for k, v in qa.items()}
-
 
 def _parse_llm_json(text: str) -> dict:
     """Extract JSON object from LLM response (handles markdown fences)."""
@@ -78,28 +67,11 @@ _SEL = {
 
     # Navigation
     "next_btn":         '[data-automation-id="bottom-navigation-next-button"], [data-automation-id="pageFooterNextButton"]',
-    "submit_btn":       '[data-automation-id="bottom-navigation-next-button"], [data-automation-id="pageFooterNextButton"]',
 
-    # My Information
-    "first_name":       '[data-automation-id="legalNameSection_firstName"]',
-    "last_name":        '[data-automation-id="legalNameSection_lastName"]',
-    "country_dropdown": '[data-automation-id="countryDropdown"]',
-    "address_line1":    '[data-automation-id="addressSection_addressLine1"]',
-    "city":             '[data-automation-id="addressSection_city"]',
-    "state":            '[data-automation-id="addressSection_countryRegion"]',
-    "postal_code":      '[data-automation-id="addressSection_postalCode"]',
-    "phone_device":     '[data-automation-id="phone-device-type"]',
-    "phone_number":     '[data-automation-id="phone-number"]',
-    "email_field":      '[data-automation-id="email"]',
-
-    # My Experience
+    # Resume upload
     "resume_page":      '[data-automation-id="resumeUpload"]',
     "resume_upload":    'input[data-automation-id="file-upload-input-ref"]',
     "resume_uploaded":  '[data-automation-id="file-upload-item"]',
-
-    # Self-identification
-    "gender_dropdown":  '[data-automation-id="gender"]',
-    "decline_option":   'text="Decline To Self Identify"',
 }
 
 def _parse_job_url(url: str) -> tuple[str, str]:
@@ -134,12 +106,21 @@ _SYSTEM_ROLE = (
 
 _SESSIONS_DIR = Path(__file__).parent.parent / "data" / "workday_sessions"
 _CREDS_PATH = Path(__file__).parent.parent / "config" / "career_sites_credentials.yaml"
+_WORKDAY_ANSWERS_PATH = Path(__file__).parent.parent / "config" / "workday_answers.yaml"
 
 
 def _load_credentials() -> dict:
     """Load per-tenant credentials from career_sites_credentials.yaml."""
     if _CREDS_PATH.exists():
         with open(_CREDS_PATH) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _load_workday_answers() -> dict:
+    """Load field mappings from workday_answers.yaml."""
+    if _WORKDAY_ANSWERS_PATH.exists():
+        with open(_WORKDAY_ANSWERS_PATH) as f:
             return yaml.safe_load(f) or {}
     return {}
 
@@ -165,7 +146,7 @@ class WorkdayApplicant:
         self._work_exp = answers.get("work_experience", [])
         self._education = answers.get("education", [])
         self._credentials = _load_credentials()
-        self._qa = _build_qa_index(answers.get("qa", {}))
+        self._workday_fields = _load_workday_answers()
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
         self._apply_email = self._personal.get("email", "")
 
@@ -247,15 +228,19 @@ class WorkdayApplicant:
             logger.warning("Could not parse external_path from URL: %s", job_url)
             return False
         try:
-            resp = self._http.get(f"{api_base}{external_path}")
-            if resp.status_code != 200:
-                logger.info("Job no longer valid (HTTP %d): %s", resp.status_code, job_url)
+            resp = self._http.get(f"{api_base}{external_path}", follow_redirects=False)
+            if resp.status_code in (403, 404):
+                logger.info("Job expired (HTTP %d): %s", resp.status_code, job_url)
                 return False
+            if resp.status_code != 200:
+                # Redirects (303), server errors (5xx), etc. — not definitively expired
+                logger.warning("Job check inconclusive (HTTP %d): %s — assuming valid", resp.status_code, job_url)
+                return True
             data = resp.json()
             return "jobPostingInfo" in data
         except (httpx.HTTPError, ValueError) as e:
-            logger.warning("Job validity check failed for %s: %s", job_url, e)
-            return False
+            logger.warning("Job validity check failed for %s: %s — assuming valid", job_url, e)
+            return True
 
     # ── Main orchestration ─────────────────────────────────────
 
@@ -357,194 +342,343 @@ class WorkdayApplicant:
     # ── Step 3: Multi-step form filling ────────────────────────
 
     def _click_next(self):
-        """Click the Next/Continue button and wait for next page to load."""
+        """Click the Save and Continue button and wait for next page to load."""
         btn = self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
-        btn_text = btn.inner_text().strip().lower()
         btn.click()
         self._page.wait_for_load_state("domcontentloaded")
-        return btn_text
+
+    def _is_submit_page(self) -> bool:
+        """Check if the current page has a Submit button."""
+        btn = self._page.query_selector(_SEL["next_btn"])
+        if btn:
+            text = btn.inner_text().strip().lower()
+            return "submit" in text
+        return False
 
     def _fill_application(self, job: dict, pdf_path: Path):
-        """Walk through the Workday application form in known step order."""
+        """Walk through the Workday application form dynamically."""
 
         # Step 1: Resume upload
         self._page.wait_for_selector(_SEL["resume_page"], timeout=_TIMEOUT)
         self._upload_resume(pdf_path)
         self._click_next()
 
-        # Step 2: My Information
-        self._page.wait_for_selector(_SEL["first_name"], timeout=_TIMEOUT)
-        self._fill_my_information()
-        self._click_next()
-
-        # Steps 3+: Remaining pages (My Experience, Questions, Disclosures, Review)
-        max_pages = 10
-        for page_num in range(max_pages):
+        # Steps 2+: Fill pages until Submit
+        while True:
             self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 
-            if self._detect_questions():
-                self._answer_application_questions(job)
-
-            if self._page.query_selector(_SEL["gender_dropdown"]):
-                self._handle_self_identification()
-
-            btn_text = self._click_next()
-
-            if "submit" in btn_text:
-                logger.info("Application submitted")
+            if self._is_submit_page():
+                # Final review page — submit
+                self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT).click()
                 self._page.wait_for_load_state("networkidle")
+                logger.info("Application submitted")
                 return
 
-        raise WorkdayApplyError(f"Exceeded max pages ({max_pages}) without submitting")
-
-    def _fill_my_information(self):
-        """Fill the My Information page (name, contact, address)."""
-        logger.info("Filling My Information page")
-
-        self._fill_if_empty(_SEL["first_name"], self._personal.get("first_name", ""))
-        self._fill_if_empty(_SEL["last_name"], self._personal.get("last_name", ""))
-        self._fill_if_empty(_SEL["address_line1"], self._personal.get("address_line1", ""))
-        self._fill_if_empty(_SEL["city"], self._personal.get("city", ""))
-        self._fill_if_empty(_SEL["postal_code"], self._personal.get("postal_code", ""))
-
-        phone_field = self._page.query_selector(_SEL["phone_number"])
-        if phone_field:
-            current = phone_field.input_value()
-            if not current.strip():
-                phone_type = self._page.query_selector(_SEL["phone_device"])
-                if phone_type:
-                    phone_type.select_option(label="Mobile")
-                self._fill_field(_SEL["phone_number"], self._personal.get("phone", ""))
+            # Fill all fields on current page
+            self._fill_page(job)
+            self._click_next()
 
     def _upload_resume(self, pdf_path: Path):
         """Upload the resume PDF file."""
         logger.info("Uploading resume: %s", pdf_path.name)
         self._page.set_input_files(_SEL["resume_upload"], str(pdf_path))
-        # Wait for upload to complete (file name appears in the UI)
         self._page.wait_for_selector(_SEL["resume_uploaded"], timeout=_TIMEOUT)
 
-    def _handle_self_identification(self):
-        """Handle voluntary self-identification page (decline all)."""
-        logger.info("Handling self-identification page (declining)")
-        dropdowns = self._page.query_selector_all('select[data-automation-id]')
-        for dropdown in dropdowns:
-            options = dropdown.query_selector_all("option")
-            for opt in options:
-                text = opt.inner_text().lower()
-                if "decline" in text or "prefer not" in text or "choose not" in text:
-                    dropdown.select_option(label=opt.inner_text())
-                    break
+    # ── Generic Page Filler ────────────────────────────────────
 
-    # ── Screening Questions ────────────────────────────────────
+    def _fill_page(self, job: dict):
+        """Detect and fill all form fields on the current page."""
+        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        fields = self._scan_page_fields()
+        logger.info("Page has %d fillable field(s)", len(fields))
 
-    def _detect_questions(self) -> bool:
-        """Check if the current page has application questions."""
-        questions = self._page.query_selector_all(
-            '[data-automation-id*="questionContainer"], '
-            '[data-automation-id*="formField"], '
-            'div[data-automation-id] label'
-        )
-        return len(questions) > 0 and not self._page.query_selector(_SEL["first_name"])
+        for field in fields:
+            name = field["field_name"]
 
-    def _answer_application_questions(self, job: dict):
-        """Extract and answer all screening questions on the current page."""
-        logger.info("Answering application questions")
-        question_groups = self._extract_question_groups()
-        for label_text, input_el, input_type, options in question_groups:
-            answer = self._get_answer(label_text, input_type, options, job)
-            self._fill_answer(input_el, input_type, answer, options)
+            # Known field → fill directly from workday_fields
+            if name in self._workday_fields:
+                value = self._workday_fields[name]
+                logger.info("  Filling '%s' → '%s'", name, value[:30])
+                self._fill_field_by_type(field, value)
+                continue
 
-    def _extract_question_groups(self) -> list[tuple]:
-        """Scrape the page for question labels and their associated inputs.
+            # Skip optional fields we don't have data for
+            if not field["required"]:
+                logger.debug("  Skipping optional: '%s'", name)
+                continue
 
-        Returns:
-            List of (label_text, input_element, input_type, options).
+            # Unknown required field → AI fallback
+            logger.info("  AI fallback for required field: '%s' (label: '%s')",
+                        name, field["label"][:60])
+            answer = self._ask_llm(field["label"], field["input_type"],
+                                   field.get("options", []), job)
+            self._fill_field_by_type(field, answer)
+
+    def _scan_page_fields(self) -> list[dict]:
+        """Scan the current page for all fillable form fields.
+
+        Workday wraps each field in a div with data-automation-id="formField-{fieldName}".
+        Inside, the actual input can be:
+          - <input type="text"> (text fields)
+          - <textarea> (text areas)
+          - <button aria-haspopup="listbox"> (custom dropdowns)
+          - <input type="radio"> (radio groups)
+          - div[data-automation-id="multiSelectContainer"] (multiselects)
+
+        Returns list of field descriptors:
+            {field_name, label, input_type, required, container, element, options}
         """
-        groups = []
+        fields = []
+        containers = self._page.query_selector_all('[data-automation-id^="formField-"]')
 
-        # Select/dropdown questions
-        for select_el in self._page.query_selector_all("select[data-automation-id]"):
-            aid = select_el.get_attribute("data-automation-id") or ""
-            if any(skip in aid for skip in ["country", "phone-device", "gender", "state"]):
-                continue
-            label = self._find_label_for(select_el)
-            if label:
-                options = [opt.inner_text() for opt in select_el.query_selector_all("option")
-                           if opt.get_attribute("value")]
-                groups.append((label, select_el, "select", options))
+        for container in containers:
+            aid = container.get_attribute("data-automation-id") or ""
+            field_name = aid.replace("formField-", "", 1)
 
-        # Text input questions
-        for input_el in self._page.query_selector_all("input[data-automation-id][type='text']"):
-            aid = input_el.get_attribute("data-automation-id") or ""
-            if any(skip in aid for skip in [
-                "legalName", "address", "city", "postal", "phone", "email",
-                "signIn", "createAccount", "file-upload"
-            ]):
-                continue
-            label = self._find_label_for(input_el)
-            if label:
-                groups.append((label, input_el, "text", []))
+            # Detect field type and check if already filled
+            field = self._classify_field(container, field_name)
+            if field:
+                fields.append(field)
 
-        # Textarea questions
-        for ta_el in self._page.query_selector_all("textarea[data-automation-id]"):
-            label = self._find_label_for(ta_el)
-            if label:
-                groups.append((label, ta_el, "textarea", []))
+        return fields
 
-        # Radio button groups
-        seen_groups = set()
-        for radio_el in self._page.query_selector_all("input[type='radio']"):
-            name = radio_el.get_attribute("name") or ""
-            if name in seen_groups:
-                continue
-            seen_groups.add(name)
-            label = self._find_label_for(radio_el)
-            if label:
-                radio_options = []
-                for r in self._page.query_selector_all(f"input[name='{name}']"):
-                    r_label = r.evaluate("el => el.parentElement?.textContent?.trim()")
-                    if r_label:
-                        radio_options.append(r_label)
-                groups.append((label, radio_el, "radio", radio_options))
+    def _classify_field(self, container, field_name: str) -> dict | None:
+        """Classify a formField container and return a field descriptor, or None if already filled."""
 
-        return groups
+        # Check for radio buttons
+        radios = container.query_selector_all("input[type='radio']")
+        if radios:
+            checked = container.query_selector("input[type='radio']:checked")
+            if checked:
+                return None  # already answered
+            options = []
+            for r in radios:
+                r_id = r.get_attribute("id") or ""
+                label_el = container.query_selector(f'label[for="{r_id}"]')
+                if label_el:
+                    options.append(label_el.inner_text().strip())
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "radio",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": radios[0],
+                "options": options,
+            }
 
-    def _find_label_for(self, element) -> str:
-        """Find the label text associated with a form element."""
-        aria = element.get_attribute("aria-label")
-        if aria and len(aria) > 3:
-            return aria.strip()
+        # Check for multiselect widget
+        multiselect = container.query_selector('[data-automation-id="multiSelectContainer"]')
+        if multiselect:
+            # Check if already has selections
+            selected = container.query_selector('[data-automation-id="selectedItem"]')
+            if selected:
+                return None  # already filled
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "multiselect",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": multiselect,
+                "options": [],
+            }
 
-        el_id = element.get_attribute("id")
-        if el_id:
-            label = self._page.query_selector(f'label[for="{el_id}"]')
-            if label:
-                return label.inner_text().strip()
+        # Check for custom dropdown (button with aria-haspopup="listbox")
+        dropdown_btn = container.query_selector('button[aria-haspopup="listbox"]')
+        if dropdown_btn:
+            btn_value = dropdown_btn.get_attribute("value") or ""
+            if btn_value:  # has a value → already filled
+                return None
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "dropdown",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": dropdown_btn,
+                "options": [],
+            }
 
-        label_text = element.evaluate(
-            """el => {
-                let parent = el.closest('[data-automation-id]');
-                if (parent) {
-                    let label = parent.querySelector('label');
-                    if (label) return label.textContent.trim();
-                }
-                return '';
-            }"""
+        # Check for textarea
+        textarea = container.query_selector("textarea")
+        if textarea:
+            if (textarea.input_value() or "").strip():
+                return None
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "textarea",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": textarea,
+                "options": [],
+            }
+
+        # Check for text input
+        text_input = container.query_selector("input[type='text']")
+        if text_input:
+            if (text_input.input_value() or "").strip():
+                return None
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "text",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": text_input,
+                "options": [],
+            }
+
+        return None
+
+    def _get_container_label(self, container) -> str:
+        """Extract the label text from a formField container."""
+        label = container.query_selector("label")
+        if label:
+            return label.inner_text().strip().rstrip("*").strip()
+        legend = container.query_selector("legend label")
+        if legend:
+            return legend.inner_text().strip().rstrip("*").strip()
+        return ""
+
+    def _container_is_required(self, container) -> bool:
+        """Check if a formField container has a required field."""
+        # Check for aria-required on inputs inside
+        required_el = container.query_selector("[aria-required='true']")
+        if required_el:
+            return True
+        # Check for required abbreviation marker (*)
+        abbr = container.query_selector("abbr")
+        if abbr:
+            return True
+        return False
+
+    def _fill_field_by_type(self, field: dict, value):
+        """Fill a field based on its input type."""
+        input_type = field["input_type"]
+
+        if input_type == "text" or input_type == "textarea":
+            # Text fields always get a string
+            fill_value = value[0] if isinstance(value, list) else value
+            field["element"].fill(fill_value)
+
+        elif input_type == "dropdown":
+            fill_value = value[0] if isinstance(value, list) else value
+            self._fill_custom_dropdown(field, fill_value)
+
+        elif input_type == "multiselect":
+            self._fill_multiselect(field, value)
+
+        elif input_type == "radio":
+            fill_value = value[0] if isinstance(value, list) else value
+            self._fill_radio(field, fill_value)
+
+    def _fill_custom_dropdown(self, field: dict, value: str):
+        """Fill a Workday custom dropdown (button with listbox)."""
+        btn = field["element"]
+        btn.click()
+        # Wait for listbox to appear
+        listbox = self._page.wait_for_selector('[role="listbox"]', timeout=_TIMEOUT)
+        # Find matching option
+        options = listbox.query_selector_all('[role="option"]')
+        for opt in options:
+            opt_text = opt.inner_text().strip()
+            if opt_text.lower() == value.lower():
+                opt.click()
+                return
+        # Substring fallback
+        for opt in options:
+            opt_text = opt.inner_text().strip()
+            if value.lower() in opt_text.lower():
+                opt.click()
+                return
+        logger.warning("No matching option for dropdown '%s': '%s'", field["field_name"], value)
+
+    def _fill_multiselect(self, field: dict, value):
+        """Fill a Workday multiselect widget (search and select).
+
+        Value can be a string or a list of strings (priority order, first match wins).
+        Opens dropdown, collects all available options, then selects the first priority match.
+        """
+        container = field["element"]
+        search_input = container.query_selector("input")
+        if not search_input:
+            logger.warning("No search input found in multiselect: '%s'", field["field_name"])
+            return
+
+        # Open dropdown to get all options
+        search_input.click()
+        dropdown = self._page.wait_for_selector('[data-automation-id="activeListContainer"]', timeout=_TIMEOUT)
+
+        # Collect all available options from THIS dropdown only
+        menu_items = dropdown.query_selector_all('[data-automation-id="menuItem"]')
+        available = {}
+        for item in menu_items:
+            label_el = item.query_selector('[data-automation-id="promptOption"]')
+            if label_el:
+                label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
+                available[label.lower()] = item
+
+        logger.info("  Multiselect '%s' has %d options: %s",
+                    field["field_name"], len(available), list(available.keys()))
+
+        # Normalize value to a priority list
+        candidates = value if isinstance(value, list) else [value]
+
+        # Select the first candidate that matches an available option
+        for candidate in candidates:
+            for label, item in available.items():
+                if candidate.lower() == label or candidate.lower() in label:
+                    item.click()
+                    logger.info("  Multiselect '%s': clicked '%s'", field["field_name"], label)
+
+                    # Check if a sub-menu appeared (back button = category expanded)
+                    try:
+                        self._page.wait_for_selector(
+                            '[data-automation-id="backButton"]', timeout=3000
+                        )
+                        # Sub-menu is open — click the matching leaf item
+                        sub_dropdown = self._page.query_selector('[data-automation-id="activeListContainer"]')
+                        if sub_dropdown:
+                            sub_items = sub_dropdown.query_selector_all('[data-automation-id="menuItem"]')
+                            for sub_item in sub_items:
+                                sub_label_el = sub_item.query_selector('[data-automation-id="promptOption"]')
+                                if sub_label_el:
+                                    sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
+                                    if candidate.lower() in sub_label.lower():
+                                        sub_item.click()
+                                        logger.info("  Multiselect '%s': selected leaf '%s'", field["field_name"], sub_label)
+                                        return
+                            # No exact match in sub-menu, click first item
+                            if sub_items:
+                                sub_items[0].click()
+                                logger.info("  Multiselect '%s': selected first sub-item", field["field_name"])
+                    except PlaywrightTimeout:
+                        pass  # No sub-menu — selection was made directly
+
+                    return
+
+        logger.warning("No matching option found for multiselect '%s'. Available: %s, Candidates: %s",
+                       field["field_name"], list(available.keys()), candidates)
+
+    def _fill_radio(self, field: dict, value: str):
+        """Fill a radio button group by clicking the exact matching option."""
+        container = field["container"]
+        radios = container.query_selector_all("input[type='radio']")
+        available = []
+        for radio in radios:
+            r_id = radio.get_attribute("id") or ""
+            label_el = container.query_selector(f'label[for="{r_id}"]')
+            if label_el:
+                label_text = label_el.inner_text().strip()
+                available.append(label_text)
+                if label_text.lower() == value.lower():
+                    radio.click()
+                    return
+        raise WorkdayApplyError(
+            f"No exact radio match for '{field['field_name']}': '{value}'. Available: {available}"
         )
-        return label_text
-
-    def _get_answer(self, question: str, input_type: str,
-                    options: list[str], job: dict) -> str:
-        """Determine the answer: Q&A lookup first, then LLM fallback."""
-        normalized = _normalize_question(question)
-
-        if normalized in self._qa:
-            answer = self._qa[normalized]
-            logger.info("  Q&A match: '%s' → '%s'", question[:60], answer)
-            return answer
-
-        logger.info("  LLM fallback for: '%s'", question[:80])
-        return self._ask_llm(question, input_type, options, job)
 
     def _ask_llm(self, question: str, input_type: str,
                  options: list[str], job: dict) -> str:
@@ -611,53 +745,3 @@ Return ONLY the JSON object, no markdown fences or extra text."""
 
         return "\n".join(parts)
 
-    def _fill_answer(self, element, input_type: str, answer: str, options: list[str]):
-        """Fill an answer into the appropriate input element."""
-        if input_type == "select":
-            best_option = self._match_option(answer, options)
-            element.select_option(label=best_option or answer)
-
-        elif input_type == "radio":
-            name = element.get_attribute("name") or ""
-            for radio in self._page.query_selector_all(f"input[name='{name}']"):
-                radio_text = radio.evaluate("el => el.parentElement?.textContent?.trim()") or ""
-                if _normalize_question(radio_text) == _normalize_question(answer):
-                    radio.click()
-                    break
-            else:
-                for radio in self._page.query_selector_all(f"input[name='{name}']"):
-                    radio_text = radio.evaluate("el => el.parentElement?.textContent?.trim()") or ""
-                    if answer.lower() in radio_text.lower():
-                        radio.click()
-                        break
-
-        else:  # text or textarea
-            element.fill(answer)
-
-    @staticmethod
-    def _match_option(answer: str, options: list[str]) -> str | None:
-        """Find the best matching option from a list (case-insensitive)."""
-        answer_lower = answer.lower().strip()
-        for opt in options:
-            if opt.lower().strip() == answer_lower:
-                return opt
-        for opt in options:
-            if answer_lower in opt.lower() or opt.lower() in answer_lower:
-                return opt
-        return None
-
-    # ── Utility helpers ────────────────────────────────────────
-
-    def _fill_field(self, selector: str, value: str):
-        """Wait for a field, clear it, and type a value."""
-        el = self._page.wait_for_selector(selector, timeout=_TIMEOUT)
-        if el:
-            el.fill(value)
-
-    def _fill_if_empty(self, selector: str, value: str):
-        """Fill a field only if it's currently empty."""
-        el = self._page.query_selector(selector)
-        if el:
-            current = el.input_value()
-            if not current.strip():
-                el.fill(value)

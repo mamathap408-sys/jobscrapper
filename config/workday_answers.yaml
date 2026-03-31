@@ -1,0 +1,21 @@
+# workday_answers.yaml — Workday form field mapping
+# Keys are the part after "formField-" in data-automation-id="formField-{key}"
+# Used by WorkdayApplicant to fill forms. Add new entries as you encounter new portals.
+
+# My Information - Name
+legalName--firstName: "xxxx"
+legalName--lastName: "xxxx"
+
+# My Information - Address
+addressLine1: "xxxx"
+city: "xxxx"
+postalCode: "xxxx"
+countryRegion: "xxxx"
+
+# My Information - Phone
+phoneType: "xxxx"
+phoneNumber: "xxxx"
+
+# My Information - Screening
+source: ["Company career website", "Other Source"]
+candidateIsPreviousWorker: "No"
