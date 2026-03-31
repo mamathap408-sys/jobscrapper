@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
+import yaml
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeout
 
 from services.genai_client import GenAIClient
@@ -69,22 +70,15 @@ _SEL = {
     "autofill_resume":  '[data-automation-id="autofillWithResume"]',
 
     # Auth page
-    "create_account":   '[data-automation-id="createAccountLink"]',
-    "sign_in_link":     '[data-automation-id="signInLink"]',
-    "sign_in_email":    '[data-automation-id="signIn-email"]',
-    "sign_in_password": '[data-automation-id="signIn-password"]',
-    "sign_in_btn":      '[data-automation-id="signIn-signIn"]',
-    "create_email":     '[data-automation-id="createAccount-email"]',
-    "create_password":  '[data-automation-id="createAccount-password"]',
-    "create_confirm":   '[data-automation-id="createAccount-confirmPassword"]',
-    "create_fn":        '[data-automation-id="createAccount-firstName"]',
-    "create_ln":        '[data-automation-id="createAccount-lastName"]',
-    "create_btn":       '[data-automation-id="createAccount-submit"]',
-    "agree_btn":        '[data-automation-id="agreementCheckbox"]',
+    "auth_form":        '[data-automation-id="signInContent"]',
+    "sign_in_btn":      '[data-automation-id="signInLink"]',
+    "auth_email":       '[data-automation-id="email"]',
+    "auth_password":    '[data-automation-id="password"]',
+    "sign_in_submit":   '[data-automation-id="click_filter"]',
 
     # Navigation
-    "next_btn":         '[data-automation-id="bottom-navigation-next-button"]',
-    "submit_btn":       '[data-automation-id="bottom-navigation-next-button"]',
+    "next_btn":         '[data-automation-id="bottom-navigation-next-button"], [data-automation-id="pageFooterNextButton"]',
+    "submit_btn":       '[data-automation-id="bottom-navigation-next-button"], [data-automation-id="pageFooterNextButton"]',
 
     # My Information
     "first_name":       '[data-automation-id="legalNameSection_firstName"]',
@@ -99,8 +93,9 @@ _SEL = {
     "email_field":      '[data-automation-id="email"]',
 
     # My Experience
+    "resume_page":      '[data-automation-id="resumeUpload"]',
     "resume_upload":    'input[data-automation-id="file-upload-input-ref"]',
-    "use_last_app":     '[data-automation-id="useMyLastApplicationLink"]',
+    "resume_uploaded":  '[data-automation-id="file-upload-item"]',
 
     # Self-identification
     "gender_dropdown":  '[data-automation-id="gender"]',
@@ -137,6 +132,23 @@ _SYSTEM_ROLE = (
 )
 
 
+_SESSIONS_DIR = Path(__file__).parent.parent / "data" / "workday_sessions"
+_CREDS_PATH = Path(__file__).parent.parent / "config" / "career_sites_credentials.yaml"
+
+
+def _load_credentials() -> dict:
+    """Load per-tenant credentials from career_sites_credentials.yaml."""
+    if _CREDS_PATH.exists():
+        with open(_CREDS_PATH) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _get_tenant(url: str) -> str:
+    """Extract tenant name from a Workday job URL (first subdomain segment)."""
+    return urlparse(url).hostname.split(".")[0]
+
+
 class WorkdayApplyError(Exception):
     """Raised when a Workday application step fails (non-retryable)."""
 
@@ -152,7 +164,7 @@ class WorkdayApplicant:
         self._personal = answers.get("personal", {})
         self._work_exp = answers.get("work_experience", [])
         self._education = answers.get("education", [])
-        self._wd_account = answers.get("workday_account", {})
+        self._credentials = _load_credentials()
         self._qa = _build_qa_index(answers.get("qa", {}))
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
         self._apply_email = self._personal.get("email", "")
@@ -162,6 +174,7 @@ class WorkdayApplicant:
         self._context = None
         self._page: Page | None = None
         self._genai: GenAIClient | None = None
+        self._current_tenant: str | None = None
         self._http = httpx.Client(
             timeout=15,
             verify=False,
@@ -178,10 +191,32 @@ class WorkdayApplicant:
         headless = self._apply_cfg.get("headless", False)
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=headless)
-        self._context = self._browser.new_context()
-        self._page = self._context.new_page()
         self._genai = GenAIClient(self._genai_cfg)
         logger.info("Browser launched (headless=%s)", headless)
+
+    def _get_session_path(self, tenant: str) -> Path:
+        """Return the session file path for a tenant."""
+        return _SESSIONS_DIR / f"{tenant}.json"
+
+    def _load_context(self, tenant: str):
+        """Create a browser context, loading saved session if available."""
+        session_path = self._get_session_path(tenant)
+        if session_path.exists():
+            logger.info("Loading saved session for tenant: %s", tenant)
+            self._context = self._browser.new_context(storage_state=str(session_path))
+        else:
+            self._context = self._browser.new_context()
+        self._page = self._context.new_page()
+        self._current_tenant = tenant
+
+    def _save_session(self):
+        """Save the current browser context session to disk."""
+        if not self._current_tenant or not self._context:
+            return
+        _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        session_path = self._get_session_path(self._current_tenant)
+        self._context.storage_state(path=str(session_path))
+        logger.info("Session saved for tenant: %s", self._current_tenant)
 
     def close(self):
         """Shut down browser and GenAI client."""
@@ -236,15 +271,22 @@ class WorkdayApplicant:
             WorkdayApplyError: On any application step failure.
         """
         job_url = job["url"]
+        tenant = _get_tenant(job_url)
 
         logger.info("Applying to: %s at %s (%s)", job["title"], job["company"], job_url)
+
+        # Load context with saved session for this tenant
+        if self._current_tenant != tenant:
+            if self._context:
+                self._context.close()
+            self._load_context(tenant)
 
         try:
             # Step 1: Navigate to job page and click Apply
             self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
             self._click_apply_button()
 
-            # Step 2: Handle authentication
+            # Step 2: Handle authentication (if session expired or first time)
             self._handle_auth()
 
             # Step 3: Fill the multi-step application form
@@ -271,74 +313,74 @@ class WorkdayApplicant:
     # ── Step 2: Authentication ─────────────────────────────────
 
     def _handle_auth(self):
-        """Handle the sign-in or account creation page if it appears."""
-        self._page.wait_for_timeout(2000)
+        """Handle authentication. Auto sign-in if credentials exist, else manual."""
+        # Wait for either auth form or next button (indicates page is ready)
+        self._page.wait_for_selector(
+            f'{_SEL["auth_form"]}, {_SEL["next_btn"]}', timeout=_TIMEOUT
+        )
 
-        sign_in = self._page.query_selector(_SEL["sign_in_link"])
-        create_acct = self._page.query_selector(_SEL["create_account"])
-
-        if not sign_in and not create_acct:
-            sign_in_email = self._page.query_selector(_SEL["sign_in_email"])
-            if sign_in_email:
-                self._do_sign_in()
+        if not self._page.query_selector(_SEL["auth_form"]):
+            logger.info("Session valid — skipping authentication")
             return
 
-        if sign_in:
-            sign_in.click()
-            self._page.wait_for_timeout(1000)
-            self._do_sign_in()
-        elif create_acct:
-            create_acct.click()
-            self._page.wait_for_timeout(1000)
-            self._do_create_account()
+        # Check if credentials exist for this tenant
+        creds = self._credentials.get(self._current_tenant)
+        if creds:
+            self._auto_sign_in(creds)
+        else:
+            logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
+            input("Press Enter after you have signed in manually...")
 
-    def _do_sign_in(self):
-        """Fill the sign-in form with stored credentials."""
-        email = self._wd_account.get("email", "")
-        password = self._wd_account.get("password", "")
-        if not email or not password:
-            raise WorkdayApplyError("Workday account credentials not configured in answers.yaml")
+        # Wait for auth form to disappear (sign-in succeeded)
+        self._page.wait_for_selector(_SEL["auth_form"], state="hidden", timeout=_TIMEOUT)
 
-        self._fill_field(_SEL["sign_in_email"], email)
-        self._fill_field(_SEL["sign_in_password"], password)
+        # Save fresh session to disk
+        self._save_session()
+
+    def _auto_sign_in(self, creds: dict):
+        """Automatically sign in using stored credentials."""
+        logger.info("Auto sign-in for tenant: %s", self._current_tenant)
+
+        # Click Sign In to get to the sign-in form
         self._page.click(_SEL["sign_in_btn"])
-        self._page.wait_for_load_state("domcontentloaded")
-        self._page.wait_for_timeout(2000)
+        self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
 
-    def _do_create_account(self):
-        """Fill the account creation form."""
-        email = self._wd_account.get("email", "")
-        password = self._wd_account.get("password", "")
-        if not email or not password:
-            raise WorkdayApplyError("Workday account credentials not configured in answers.yaml")
+        # Fill email and password
+        email_input = self._page.query_selector(_SEL["auth_email"])
+        email_input.fill(creds["email"])
+        password_input = self._page.query_selector(_SEL["auth_password"])
+        password_input.fill(creds["password"])
 
-        self._fill_field(_SEL["create_email"], email)
-        self._fill_field(_SEL["create_password"], password)
-        self._fill_field(_SEL["create_confirm"], password)
-        self._fill_field(_SEL["create_fn"], self._personal.get("first_name", ""))
-        self._fill_field(_SEL["create_ln"], self._personal.get("last_name", ""))
-
-        agree = self._page.query_selector(_SEL["agree_btn"])
-        if agree:
-            agree.click()
-
-        self._page.click(_SEL["create_btn"])
-        self._page.wait_for_load_state("domcontentloaded")
-        self._page.wait_for_timeout(2000)
+        # Submit
+        self._page.click(_SEL["sign_in_submit"])
 
     # ── Step 3: Multi-step form filling ────────────────────────
 
+    def _click_next(self):
+        """Click the Next/Continue button and wait for next page to load."""
+        btn = self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
+        btn_text = btn.inner_text().strip().lower()
+        btn.click()
+        self._page.wait_for_load_state("domcontentloaded")
+        return btn_text
+
     def _fill_application(self, job: dict, pdf_path: Path):
-        """Walk through the Workday application form pages and fill each one."""
+        """Walk through the Workday application form in known step order."""
+
+        # Step 1: Resume upload
+        self._page.wait_for_selector(_SEL["resume_page"], timeout=_TIMEOUT)
+        self._upload_resume(pdf_path)
+        self._click_next()
+
+        # Step 2: My Information
+        self._page.wait_for_selector(_SEL["first_name"], timeout=_TIMEOUT)
+        self._fill_my_information()
+        self._click_next()
+
+        # Steps 3+: Remaining pages (My Experience, Questions, Disclosures, Review)
         max_pages = 10
         for page_num in range(max_pages):
-            self._page.wait_for_timeout(1500)
-
-            if self._page.query_selector(_SEL["resume_upload"]):
-                self._upload_resume(pdf_path)
-
-            if self._page.query_selector(_SEL["first_name"]):
-                self._fill_my_information()
+            self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 
             if self._detect_questions():
                 self._answer_application_questions(job)
@@ -346,22 +388,14 @@ class WorkdayApplicant:
             if self._page.query_selector(_SEL["gender_dropdown"]):
                 self._handle_self_identification()
 
-            next_btn = self._page.query_selector(_SEL["next_btn"])
-            if not next_btn:
-                logger.info("No Next button found on page %d — application may be complete", page_num + 1)
-                break
-
-            btn_text = next_btn.inner_text().strip().lower()
-            next_btn.click()
-            self._page.wait_for_load_state("domcontentloaded")
+            btn_text = self._click_next()
 
             if "submit" in btn_text:
-                logger.info("Application submitted (clicked Submit on page %d)", page_num + 1)
-                self._page.wait_for_timeout(2000)
-                break
+                logger.info("Application submitted")
+                self._page.wait_for_load_state("networkidle")
+                return
 
-        else:
-            raise WorkdayApplyError(f"Exceeded max pages ({max_pages}) without submitting")
+        raise WorkdayApplyError(f"Exceeded max pages ({max_pages}) without submitting")
 
     def _fill_my_information(self):
         """Fill the My Information page (name, contact, address)."""
@@ -385,12 +419,9 @@ class WorkdayApplicant:
     def _upload_resume(self, pdf_path: Path):
         """Upload the resume PDF file."""
         logger.info("Uploading resume: %s", pdf_path.name)
-        upload_input = self._page.query_selector(_SEL["resume_upload"])
-        if upload_input:
-            upload_input.set_input_files(str(pdf_path))
-            self._page.wait_for_timeout(2000)
-        else:
-            raise WorkdayApplyError("Resume upload input not found")
+        self._page.set_input_files(_SEL["resume_upload"], str(pdf_path))
+        # Wait for upload to complete (file name appears in the UI)
+        self._page.wait_for_selector(_SEL["resume_uploaded"], timeout=_TIMEOUT)
 
     def _handle_self_identification(self):
         """Handle voluntary self-identification page (decline all)."""
