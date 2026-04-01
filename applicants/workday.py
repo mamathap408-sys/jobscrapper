@@ -328,9 +328,13 @@ class WorkdayApplicant:
         self._page.click(_SEL["sign_in_btn"])
         self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
 
-        # Fill email and password (locator API auto-retries until element is editable)
-        self._page.locator(_SEL["auth_email"]).fill(creds["email"])
-        self._page.locator(_SEL["auth_password"]).fill(creds["password"])
+        # Fill email and password (click to focus, then type for reliability)
+        self._page.click(_SEL["auth_email"])
+        self._page.fill(_SEL["auth_email"], "")
+        self._page.type(_SEL["auth_email"], creds["email"])
+        self._page.click(_SEL["auth_password"])
+        self._page.fill(_SEL["auth_password"], "")
+        self._page.type(_SEL["auth_password"], creds["password"])
 
         # Submit — click and retry until auth form disappears
         while self._page.query_selector(_SEL["auth_form"]):
