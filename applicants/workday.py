@@ -22,6 +22,7 @@ On any failure: raises WorkdayApplyError → caller skips to next job.
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -316,9 +317,6 @@ class WorkdayApplicant:
             logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
             input("Press Enter after you have signed in manually...")
 
-        # Wait for auth form to disappear (sign-in succeeded)
-        self._page.wait_for_selector(_SEL["auth_form"], state="hidden", timeout=_TIMEOUT)
-
         # Save fresh session to disk
         self._save_session()
 
@@ -330,14 +328,20 @@ class WorkdayApplicant:
         self._page.click(_SEL["sign_in_btn"])
         self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
 
-        # Fill email and password
-        email_input = self._page.query_selector(_SEL["auth_email"])
-        email_input.fill(creds["email"])
-        password_input = self._page.query_selector(_SEL["auth_password"])
-        password_input.fill(creds["password"])
+        # Fill email and password (locator API auto-retries until element is editable)
+        self._page.locator(_SEL["auth_email"]).fill(creds["email"])
+        self._page.locator(_SEL["auth_password"]).fill(creds["password"])
 
-        # Submit
-        self._page.click(_SEL["sign_in_submit"])
+        # Submit — click and retry until auth form disappears
+        while self._page.query_selector(_SEL["auth_form"]):
+            time.sleep(1)
+            self._page.click(_SEL["sign_in_submit"])
+            try:
+                self._page.wait_for_selector(_SEL["auth_form"], state="hidden", timeout=5000)
+                break
+            except PlaywrightTimeout:
+                continue  # click didn't register, retry
+        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
 
     # ── Step 3: Multi-step form filling ────────────────────────
 
@@ -365,11 +369,11 @@ class WorkdayApplicant:
 
         # Steps 2+: Fill pages until Submit
         while True:
+            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
             self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 
             if self._is_submit_page():
-                # Final review page — submit
-                self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT).click()
+                self._page.query_selector(_SEL["next_btn"]).click()
                 self._page.wait_for_load_state("networkidle")
                 logger.info("Application submitted")
                 return
@@ -388,7 +392,6 @@ class WorkdayApplicant:
 
     def _fill_page(self, job: dict):
         """Detect and fill all form fields on the current page."""
-        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
         fields = self._scan_page_fields()
         logger.info("Page has %d fillable field(s)", len(fields))
 
