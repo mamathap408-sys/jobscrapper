@@ -23,6 +23,7 @@ from pathlib import Path
 from config import load_config, load_answers
 from services.db import JobDatabase
 from applicants import detect_applicant_type, get_applicant
+from applicants.resume_parser import parse_resume_tex
 
 logging.basicConfig(
     level=logging.INFO,
@@ -220,7 +221,8 @@ def main():
                         if not pdf_path:
                             raise RuntimeError(f"Failed to prepare resume: {job['resume_name']}")
 
-                        applicant.apply(job, pdf_path)
+                        resume_data = parse_resume_tex(pdf_path)
+                        applicant.apply(job, pdf_path, resume_data)
                         db.mark_applied(job_id)
                         submitted += 1
                         logger.info("Applied [%d/%d]: %s at %s",

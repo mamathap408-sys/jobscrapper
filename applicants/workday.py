@@ -58,17 +58,27 @@ _TIMEOUT = 15_000
 _SEL = {
     # Job page
     "apply_btn":        '[data-automation-id="jobPostingApplyButton"], [data-automation-id="adventureButton"]',
+    "continue_btn":     '[data-automation-id="continueButton"]',
     "autofill_resume":  '[data-automation-id="autofillWithResume"]',
 
-    # Auth page
+    # Candidate Home (for deleting existing applications)
+    "candidate_home":   '[data-automation-id="navigationItem-Candidate Home"]',
+    "action_menu":      '[data-automation-id="actionMenuTarget"]',
+    "delete_app":       '[data-automation-id="deleteApplication"]',
+
+    # Auth
+    "header_sign_in":   '[data-automation-id="utilityButtonSignIn"]',
     "auth_form":        '[data-automation-id="signInContent"]',
-    "sign_in_btn":      '[data-automation-id="signInLink"]',
     "auth_email":       '[data-automation-id="email"]',
     "auth_password":    '[data-automation-id="password"]',
     "sign_in_submit":   '[data-automation-id="click_filter"]',
 
     # Navigation
     "next_btn":         '[data-automation-id="bottom-navigation-next-button"], [data-automation-id="pageFooterNextButton"]',
+
+    # Page types
+    "info_page":        '[data-automation-id="applyFlowMyInfoPage"]',
+    "exp_page":         '[data-automation-id="applyFlowMyExpPage"]',
 
     # Resume upload
     "resume_page":      '[data-automation-id="resumeUpload"]',
@@ -246,13 +256,14 @@ class WorkdayApplicant:
 
     # ── Main orchestration ─────────────────────────────────────
 
-    def apply(self, job: dict, pdf_path: Path) -> bool:
+    def apply(self, job: dict, pdf_path: Path, resume_data: dict) -> bool:
         """Apply to a single Workday job. Returns True on success.
 
         Args:
-            job:      Dict from DB with keys: job_id, url, title, company,
-                      job_description, resume_name.
-            pdf_path: Path to the resume PDF to upload.
+            job:         Dict from DB with keys: job_id, url, title, company,
+                         job_description, resume_name.
+            pdf_path:    Path to the resume PDF to upload.
+            resume_data: Parsed resume data (work_experience, education) from resume_parser.
 
         Raises:
             WorkdayApplyError: On any application step failure.
@@ -269,15 +280,15 @@ class WorkdayApplicant:
             self._load_context(tenant)
 
         try:
-            # Step 1: Navigate to job page and click Apply
+            # Step 1: Navigate to job page and ensure signed in
             self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            self._ensure_signed_in()
+
+            # Step 2: Click Apply
             self._click_apply_button()
 
-            # Step 2: Handle authentication (if session expired or first time)
-            self._handle_auth()
-
             # Step 3: Fill the multi-step application form
-            self._fill_application(job, pdf_path)
+            self._fill_application(job, pdf_path, resume_data)
 
             logger.info("Successfully applied to: %s at %s", job["title"], job["company"])
             return True
@@ -285,32 +296,18 @@ class WorkdayApplicant:
         except PlaywrightTimeout as e:
             raise WorkdayApplyError(f"Timeout waiting for element: {e}") from e
 
-    # ── Step 1: Click Apply ────────────────────────────────────
+    # ── Pre-auth: Sign in from job page header ──────────────────
 
-    def _click_apply_button(self):
-        """Find and click the Apply button, then select 'Autofill with Resume'."""
-        self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT).click()
-
-        # Handle "Start Your Application" modal
-        autofill_btn = self._page.wait_for_selector(_SEL["autofill_resume"], timeout=_TIMEOUT)
-        logger.info("Application modal detected — choosing 'Autofill with Resume'")
-        autofill_btn.click()
-        self._page.wait_for_load_state("domcontentloaded")
-
-    # ── Step 2: Authentication ─────────────────────────────────
-
-    def _handle_auth(self):
-        """Handle authentication. Auto sign-in if credentials exist, else manual."""
-        # Wait for either auth form or next button (indicates page is ready)
-        self._page.wait_for_selector(
-            f'{_SEL["auth_form"]}, {_SEL["next_btn"]}', timeout=_TIMEOUT
-        )
-
-        if not self._page.query_selector(_SEL["auth_form"]):
-            logger.info("Session valid — skipping authentication")
+    def _ensure_signed_in(self):
+        """Sign in from the job page header if not already authenticated."""
+        if not self._page.query_selector(_SEL["header_sign_in"]):
+            logger.info("Already signed in")
             return
 
-        # Check if credentials exist for this tenant
+        logger.info("Not signed in — signing in from header")
+        self._page.click(_SEL["header_sign_in"])
+        self._page.wait_for_selector(_SEL["auth_form"], timeout=_TIMEOUT)
+
         creds = self._credentials.get(self._current_tenant)
         if creds:
             self._auto_sign_in(creds)
@@ -318,16 +315,64 @@ class WorkdayApplicant:
             logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
             input("Press Enter after you have signed in manually...")
 
-        # Save fresh session to disk
+        self._page.reload(wait_until="networkidle")
         self._save_session()
+
+    # ── Step 1: Click Apply ────────────────────────────────────
+
+    def _click_apply_button(self):
+        """Find and click the Apply button, then select 'Autofill with Resume'.
+
+        If a previous unsubmitted application exists (Continue Application),
+        delete it first, then apply fresh.
+        """
+        # Wait for either Apply or Continue button
+        self._page.wait_for_selector(
+            f'{_SEL["apply_btn"]}, {_SEL["continue_btn"]}', timeout=_TIMEOUT
+        )
+
+        # If "Continue Application" exists, delete existing application first
+        if self._page.query_selector(_SEL["continue_btn"]):
+            logger.info("Existing application found — deleting before re-applying")
+            self._delete_existing_application()
+            # Navigate back to job page
+            self._page.go_back()
+            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+            self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
+
+        self._page.query_selector(_SEL["apply_btn"]).click()
+
+        # Handle "Start Your Application" modal
+        autofill_btn = self._page.wait_for_selector(_SEL["autofill_resume"], timeout=_TIMEOUT)
+        logger.info("Application modal detected — choosing 'Autofill with Resume'")
+        autofill_btn.click()
+        self._page.wait_for_load_state("domcontentloaded")
+
+    def _delete_existing_application(self):
+        """Navigate to Candidate Home and delete the existing application."""
+        logger.info("Navigating to Candidate Home")
+        self._page.click(_SEL["candidate_home"])
+        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+
+        # Click action menu (three dots) on the first application row
+        self._page.wait_for_selector(_SEL["action_menu"], timeout=_TIMEOUT)
+        self._page.click(_SEL["action_menu"])
+
+        # Click "Delete Application"
+        self._page.wait_for_selector(_SEL["delete_app"], timeout=_TIMEOUT)
+        self._page.click(_SEL["delete_app"])
+
+        # Handle confirmation dialog if any
+        confirm_btn = self._page.query_selector('[data-automation-id="confirmButton"], button:has-text("Delete")')
+        if confirm_btn:
+            confirm_btn.click()
+
+        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        logger.info("Existing application deleted")
 
     def _auto_sign_in(self, creds: dict):
         """Automatically sign in using stored credentials."""
         logger.info("Auto sign-in for tenant: %s", self._current_tenant)
-
-        # Click Sign In to get to the sign-in form
-        self._page.click(_SEL["sign_in_btn"])
-        self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
 
         # Fill email and password (click to focus, then type for reliability)
         self._page.click(_SEL["auth_email"])
@@ -336,6 +381,7 @@ class WorkdayApplicant:
         self._page.click(_SEL["auth_password"])
         self._page.fill(_SEL["auth_password"], "")
         self._page.type(_SEL["auth_password"], creds["password"])
+
 
         # Submit — click and retry until auth form disappears
         while self._page.query_selector(_SEL["auth_form"]):
@@ -364,7 +410,7 @@ class WorkdayApplicant:
             return "submit" in text
         return False
 
-    def _fill_application(self, job: dict, pdf_path: Path):
+    def _fill_application(self, job: dict, pdf_path: Path, resume_data: dict):
         """Walk through the Workday application form dynamically."""
 
         # Step 1: Resume upload
@@ -383,8 +429,13 @@ class WorkdayApplicant:
                 logger.info("Application submitted")
                 return
 
-            # Fill all fields on current page
-            self._fill_page(job)
+            # Route to correct page handler
+            if self._page.query_selector(_SEL["info_page"]):
+                self._fill_form_page(job)
+            elif self._page.query_selector(_SEL["exp_page"]):
+                self._fill_experience_page(resume_data)
+            else:
+                self._fill_form_page(job)
             self._click_next()
 
     def _upload_resume(self, pdf_path: Path):
@@ -393,9 +444,111 @@ class WorkdayApplicant:
         self._page.set_input_files(_SEL["resume_upload"], str(pdf_path))
         self._page.wait_for_selector(_SEL["resume_uploaded"], timeout=_TIMEOUT)
 
+    # ── My Experience Page ──────────────────────────────────────
+
+    def _fill_experience_page(self, resume_data: dict):
+        """Fill the My Experience page (work experience, education) from parsed resume data."""
+        logger.info("Filling My Experience page")
+
+        work_exp = resume_data.get("work_experience", [])
+        education = resume_data.get("education", [])
+
+        # Fill work experience entries
+        for i, exp in enumerate(work_exp):
+            logger.info("  Adding work experience %d: %s at %s", i + 1, exp.get("jobTitle", ""), exp.get("companyName", ""))
+            self._click_section_add("Work-Experience")
+            self._fill_work_experience_entry(exp)
+
+        # Fill education entries
+        for i, edu in enumerate(education):
+            logger.info("  Adding education %d: %s from %s", i + 1, edu.get("degree", ""), edu.get("school", ""))
+            self._click_section_add("Education")
+            self._fill_education_entry(edu)
+
+
+    def _click_section_add(self, section_id: str):
+        """Click the 'Add' button within a section group."""
+        section = self._page.query_selector(f'[aria-labelledby="{section_id}-section"]')
+        if not section:
+            raise WorkdayApplyError(f"Section not found: '{section_id}'")
+        add_btn = section.query_selector('[data-automation-id="add-button"]')
+        if not add_btn:
+            raise WorkdayApplyError(f"Add button not found in section: '{section_id}'")
+        add_btn.click()
+        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+
+    def _fill_work_experience_entry(self, exp: dict):
+        """Fill a single work experience entry after clicking Add."""
+        # Text fields
+        self._fill_experience_field("jobTitle", exp.get("jobTitle", ""))
+        self._fill_experience_field("companyName", exp.get("companyName", ""))
+        if exp.get("location"):
+            self._fill_experience_field("location", exp["location"])
+
+        # Checkbox: currently work here
+        if exp.get("currentlyWorkHere"):
+            checkbox = self._page.query_selector(
+                '[data-automation-id="formField-currentlyWorkHere"] input[type="checkbox"]'
+            )
+            if checkbox and checkbox.get_attribute("aria-checked") != "true":
+                checkbox.click()
+
+        # Date fields
+        self._fill_date_field("startDate", exp.get("startDate", ""))
+        if not exp.get("currentlyWorkHere") and exp.get("endDate", "").lower() != "present":
+            self._fill_date_field("endDate", exp.get("endDate", ""))
+
+        # Role description (optional)
+        if exp.get("roleDescription"):
+            desc = self._page.query_selector('[data-automation-id="formField-roleDescription"] textarea')
+            if desc:
+                desc.fill(exp["roleDescription"])
+
+    def _fill_education_entry(self, edu: dict):
+        """Fill a single education entry after clicking Add."""
+        if edu.get("school"):
+            self._fill_experience_field("school", edu["school"])
+        if edu.get("degree"):
+            self._fill_experience_field("degree", edu["degree"])
+        if edu.get("field"):
+            self._fill_experience_field("field", edu["field"])
+
+        # Date fields
+        if edu.get("startDate"):
+            self._fill_date_field("startDate", edu["startDate"])
+        if edu.get("endDate"):
+            self._fill_date_field("endDate", edu["endDate"])
+
+    def _fill_experience_field(self, field_name: str, value: str):
+        """Fill a text field by its formField automation ID on the experience page."""
+        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+        if not container:
+            return
+        text_input = container.query_selector("input[type='text']")
+        if text_input:
+            text_input.fill(value)
+
+    def _fill_date_field(self, field_name: str, value: str):
+        """Fill a date field (MM/YYYY format) by its formField automation ID."""
+        if not value or value.lower() == "present":
+            return
+        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+        if not container:
+            return
+        parts = value.split("/")
+        if len(parts) != 2:
+            return
+        month, year = parts
+        month_input = container.query_selector('[data-automation-id="dateSectionMonth-input"]')
+        year_input = container.query_selector('[data-automation-id="dateSectionYear-input"]')
+        if month_input:
+            month_input.fill(month)
+        if year_input:
+            year_input.fill(year)
+
     # ── Generic Page Filler ────────────────────────────────────
 
-    def _fill_page(self, job: dict):
+    def _fill_form_page(self, job: dict):
         """Detect and fill all form fields on the current page."""
         fields = self._scan_page_fields()
         logger.info("Page has %d fillable field(s)", len(fields))
