@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -405,8 +406,13 @@ class WorkdayApplicant:
             # Known field → fill directly from workday_fields
             if name in self._workday_fields:
                 value = self._workday_fields[name]
-                logger.info("  Filling '%s' → '%s'", name, value[:30])
-                self._fill_field_by_type(field, value)
+                logger.info("  Filling '%s' → '%s'", name, str(value)[:30])
+                try:
+                    self._fill_field_by_type(field, value)
+                except WorkdayApplyError as e:
+                    if field["required"]:
+                        raise
+                    logger.warning("  Skipping optional field '%s': %s", name, e)
                 continue
 
             # Skip optional fields we don't have data for
@@ -571,8 +577,7 @@ class WorkdayApplicant:
             field["element"].fill(fill_value)
 
         elif input_type == "dropdown":
-            fill_value = value[0] if isinstance(value, list) else value
-            self._fill_custom_dropdown(field, fill_value)
+            self._fill_custom_dropdown(field, value)
 
         elif input_type == "multiselect":
             self._fill_multiselect(field, value)
@@ -581,26 +586,49 @@ class WorkdayApplicant:
             fill_value = value[0] if isinstance(value, list) else value
             self._fill_radio(field, fill_value)
 
-    def _fill_custom_dropdown(self, field: dict, value: str):
-        """Fill a Workday custom dropdown (button with listbox)."""
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        """Strip diacriticals and lowercase for comparison."""
+        nfkd = unicodedata.normalize("NFKD", text)
+        return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+    def _fill_custom_dropdown(self, field: dict, value):
+        """Fill a Workday custom dropdown (button with listbox).
+
+        Value can be a string or a list of strings (priority order, first match wins).
+        """
         btn = field["element"]
         btn.click()
-        # Wait for listbox to appear
-        listbox = self._page.wait_for_selector('[role="listbox"]', timeout=_TIMEOUT)
-        # Find matching option
+        # Wait for dropdown popup listbox
+        listbox = self._page.wait_for_selector(
+            '[data-popper-placement] [role="listbox"]', timeout=_TIMEOUT
+        )
+        # Collect available options
         options = listbox.query_selector_all('[role="option"]')
+        available = []
+        option_map = {}
         for opt in options:
             opt_text = opt.inner_text().strip()
-            if opt_text.lower() == value.lower():
-                opt.click()
+            available.append(opt_text)
+            option_map[self._normalize_text(opt_text)] = opt
+
+        # Normalize value to priority list
+        candidates = value if isinstance(value, list) else [value]
+
+        # Try each candidate in priority order
+        for candidate in candidates:
+            norm_candidate = self._normalize_text(candidate)
+            if norm_candidate in option_map:
+                option_map[norm_candidate].click()
+                # Wait for dropdown popup to close before proceeding
+                self._page.wait_for_selector(
+                    '[data-popper-placement] [role="listbox"]', state="hidden", timeout=_TIMEOUT
+                )
                 return
-        # Substring fallback
-        for opt in options:
-            opt_text = opt.inner_text().strip()
-            if value.lower() in opt_text.lower():
-                opt.click()
-                return
-        logger.warning("No matching option for dropdown '%s': '%s'", field["field_name"], value)
+
+        raise WorkdayApplyError(
+            f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
+        )
 
     def _fill_multiselect(self, field: dict, value):
         """Fill a Workday multiselect widget (search and select).
@@ -611,8 +639,8 @@ class WorkdayApplicant:
         container = field["element"]
         search_input = container.query_selector("input")
         if not search_input:
-            logger.warning("No search input found in multiselect: '%s'", field["field_name"])
-            return
+            raise WorkdayApplyError(f"No search input found in multiselect: '{field['field_name']}'")
+
 
         # Open dropdown to get all options
         search_input.click()
@@ -666,8 +694,9 @@ class WorkdayApplicant:
 
                     return
 
-        logger.warning("No matching option found for multiselect '%s'. Available: %s, Candidates: %s",
-                       field["field_name"], list(available.keys()), candidates)
+        raise WorkdayApplyError(
+            f"No matching option for multiselect '{field['field_name']}'. Available: {list(available.keys())}, Candidates: {candidates}"
+        )
 
     def _fill_radio(self, field: dict, value: str):
         """Fill a radio button group by clicking the exact matching option."""

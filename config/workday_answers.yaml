@@ -12,6 +12,9 @@ city: "xxxx"
 postalCode: "xxxx"
 countryRegion: "xxxx"
 
+# My Information - Name
+legalName--title: "xxxx"
+
 # My Information - Phone
 phoneType: "xxxx"
 phoneNumber: "xxxx"
