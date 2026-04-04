@@ -22,3 +22,11 @@ phoneNumber: "xxxx"
 # My Information - Screening
 source: ["Company career website", "Other Source"]
 candidateIsPreviousWorker: "No"
+
+# My Experience - Education
+education:
+  school: ["xxxx"]
+  degree: ["Bachelor of Technology", "B.Tech", "BTech", "Bachelor's Degree", "Bachelor of Engineering", "B.E.", "B.S."]
+  fieldOfStudy: "Electronics and Communication Engineering"
+  startDate: "08/2018"
+  endDate: "05/2022"

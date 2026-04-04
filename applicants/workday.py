@@ -86,7 +86,26 @@ _SEL = {
     "resume_uploaded":  '[data-automation-id="file-upload-item"]',
 
     # Experience page fields
-    "exp_job_title":    '[data-automation-id="formField-jobTitle"]',
+    "exp_job_title":        '[data-automation-id="formField-jobTitle"]',
+    "exp_school":           '[data-automation-id="formField-school"]',
+    "exp_degree":           '[data-automation-id="formField-degree"]',
+    "exp_currently_here":   '[data-automation-id="formField-currentlyWorkHere"] input[type="checkbox"]',
+    "exp_role_desc":        '[data-automation-id="formField-roleDescription"] textarea',
+
+    # Common widget selectors
+    "multiselect":          '[data-automation-id="multiSelectContainer"]',
+    "selected_item":        '[data-automation-id="selectedItem"]',
+    "active_list":          '[data-automation-id="activeListContainer"]',
+    "menu_item":            '[data-automation-id="menuItem"]',
+    "prompt_option":        '[data-automation-id="promptOption"]',
+    "back_button":          '[data-automation-id="backButton"]',
+    "add_button":           '[data-automation-id="add-button"]',
+    "confirm_button":       '[data-automation-id="confirmButton"], button:has-text("Delete")',
+    "date_month":           '[data-automation-id="dateSectionMonth-input"]',
+    "date_year":            '[data-automation-id="dateSectionYear-input"]',
+    "dropdown_btn":         'button[aria-haspopup="listbox"]',
+    "dropdown_listbox":     '[data-popper-placement] [role="listbox"]',
+    "dropdown_option":      '[role="option"]',
 }
 
 def _parse_job_url(url: str) -> tuple[str, str]:
@@ -162,6 +181,8 @@ class WorkdayApplicant:
         self._education = answers.get("education", [])
         self._credentials = _load_credentials()
         self._workday_fields = _load_workday_answers()
+        if "education" not in self._workday_fields:
+            raise WorkdayApplyError("'education' section missing from workday_answers.yaml")
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
         self._apply_email = self._personal.get("email", "")
 
@@ -366,7 +387,7 @@ class WorkdayApplicant:
         self._page.click(_SEL["delete_app"])
 
         # Handle confirmation dialog if any
-        confirm_btn = self._page.query_selector('[data-automation-id="confirmButton"], button:has-text("Delete")')
+        confirm_btn = self._page.query_selector(_SEL["confirm_button"])
         if confirm_btn:
             confirm_btn.click()
 
@@ -453,11 +474,14 @@ class WorkdayApplicant:
     # ── My Experience Page ──────────────────────────────────────
 
     def _fill_experience_page(self, resume_data: dict):
-        """Fill the My Experience page (work experience, education) from parsed resume data."""
+        """Fill the My Experience page.
+
+        Work experience comes from resume_data (dynamic per job).
+        Education comes from workday_answers.yaml (static).
+        """
         logger.info("Filling My Experience page")
 
         work_exp = resume_data.get("work_experience", [])
-        education = resume_data.get("education", [])
 
         # Fill work experience entries
         for i, exp in enumerate(work_exp):
@@ -466,11 +490,12 @@ class WorkdayApplicant:
             self._page.wait_for_selector(_SEL["exp_job_title"], timeout=_TIMEOUT)
             self._fill_work_experience_entry(exp)
 
-        # Fill education entries
-        for i, edu in enumerate(education):
-            logger.info("  Adding education %d: %s from %s", i + 1, edu.get("degree", ""), edu.get("school", ""))
-            self._click_section_add("Education")
-            self._fill_education_entry(edu)
+        # Fill education (from workday_answers.yaml)
+        edu = self._workday_fields["education"]
+        logger.info("  Adding education: %s from %s", edu.get("degree", ""), edu.get("school", ""))
+        self._click_section_add("Education")
+        self._page.wait_for_selector(_SEL["exp_school"], timeout=_TIMEOUT)
+        self._fill_education_entry(edu)
 
 
     def _click_section_add(self, section_id: str):
@@ -478,7 +503,7 @@ class WorkdayApplicant:
         section = self._page.query_selector(f'[aria-labelledby="{section_id}-section"]')
         if not section:
             raise WorkdayApplyError(f"Section not found: '{section_id}'")
-        add_btn = section.query_selector('[data-automation-id="add-button"]')
+        add_btn = section.query_selector(_SEL["add_button"])
         if not add_btn:
             raise WorkdayApplyError(f"Add button not found in section: '{section_id}'")
         add_btn.click()
@@ -494,9 +519,7 @@ class WorkdayApplicant:
 
         # Checkbox: currently work here
         if exp.get("currentlyWorkHere"):
-            checkbox = self._page.query_selector(
-                '[data-automation-id="formField-currentlyWorkHere"] input[type="checkbox"]'
-            )
+            checkbox = self._page.query_selector(_SEL["exp_currently_here"])
             if checkbox and checkbox.get_attribute("aria-checked") != "true":
                 checkbox.click()
 
@@ -507,24 +530,83 @@ class WorkdayApplicant:
 
         # Role description (optional)
         if exp.get("roleDescription"):
-            desc = self._page.query_selector('[data-automation-id="formField-roleDescription"] textarea')
+            desc = self._page.query_selector(_SEL["exp_role_desc"])
             if desc:
                 desc.fill(exp["roleDescription"])
 
     def _fill_education_entry(self, edu: dict):
-        """Fill a single education entry after clicking Add."""
+        """Fill a single education entry after clicking Add.
+
+        Fields: school (searchable multiselect), degree (dropdown),
+        fieldOfStudy (searchable multiselect), dates.
+        """
+        # School — searchable multiselect, try each name in priority list
         if edu.get("school"):
-            self._fill_experience_field("school", edu["school"])
+            self._fill_searchable_field("school", edu["school"])
+
+        # Degree — custom dropdown
         if edu.get("degree"):
-            self._fill_experience_field("degree", edu["degree"])
-        if edu.get("field"):
-            self._fill_experience_field("field", edu["field"])
+            container = self._page.query_selector(_SEL["exp_degree"])
+            if container:
+                dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
+                if dropdown_btn:
+                    field = {
+                        "field_name": "degree",
+                        "element": dropdown_btn,
+                    }
+                    self._fill_custom_dropdown(field, edu["degree"])
+
+        # Field of Study — searchable multiselect
+        if edu.get("fieldOfStudy"):
+            self._fill_searchable_field("fieldOfStudy", edu["fieldOfStudy"])
 
         # Date fields
         if edu.get("startDate"):
             self._fill_date_field("startDate", edu["startDate"])
         if edu.get("endDate"):
             self._fill_date_field("endDate", edu["endDate"])
+
+    def _fill_searchable_field(self, field_name: str, value):
+        """Fill a searchable multiselect field by typing and pressing Enter.
+
+        Value can be a string or list of strings (priority order, first match wins).
+        Types each candidate, presses Enter, checks if a selectedItem pill appeared.
+        """
+        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+        if not container:
+            raise WorkdayApplyError(f"Searchable field not found: '{field_name}'")
+
+        multiselect = container.query_selector(_SEL["multiselect"])
+        if not multiselect:
+            raise WorkdayApplyError(f"No multiselect in field: '{field_name}'")
+
+        search_input = multiselect.query_selector("input")
+        if not search_input:
+            raise WorkdayApplyError(f"No search input in field: '{field_name}'")
+
+        candidates = value if isinstance(value, list) else [value]
+
+        for candidate in candidates:
+            # Clear and type search term, then press Enter
+            search_input.click()
+            search_input.fill("")
+            search_input.type(candidate)
+            search_input.press("Enter")
+
+            # Check if a selectedItem pill appeared (success)
+            try:
+                container.wait_for_selector(_SEL["selected_item"], timeout=3000)
+                logger.info("  Searchable '%s': selected with '%s'", field_name, candidate)
+                return
+            except PlaywrightTimeout:
+                # No match — clear and try next candidate
+                search_input.fill("")
+                logger.info("  Searchable '%s': no match for '%s'", field_name, candidate)
+                continue
+
+        raise WorkdayApplyError(
+            f"No matching option for searchable field '{field_name}'. Tried: {candidates}"
+        )
 
     def _fill_experience_field(self, field_name: str, value: str):
         """Fill a text field by its formField automation ID on the experience page."""
@@ -546,8 +628,8 @@ class WorkdayApplicant:
         if len(parts) != 2:
             return
         month, year = parts
-        month_input = container.query_selector('[data-automation-id="dateSectionMonth-input"]')
-        year_input = container.query_selector('[data-automation-id="dateSectionYear-input"]')
+        month_input = container.query_selector(_SEL["date_month"])
+        year_input = container.query_selector(_SEL["date_year"])
         if month_input:
             month_input.fill(month)
         if year_input:
@@ -641,10 +723,10 @@ class WorkdayApplicant:
             }
 
         # Check for multiselect widget
-        multiselect = container.query_selector('[data-automation-id="multiSelectContainer"]')
+        multiselect = container.query_selector(_SEL["multiselect"])
         if multiselect:
             # Check if already has selections
-            selected = container.query_selector('[data-automation-id="selectedItem"]')
+            selected = container.query_selector(_SEL["selected_item"])
             if selected:
                 return None  # already filled
             return {
@@ -658,7 +740,7 @@ class WorkdayApplicant:
             }
 
         # Check for custom dropdown (button with aria-haspopup="listbox")
-        dropdown_btn = container.query_selector('button[aria-haspopup="listbox"]')
+        dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
         if dropdown_btn:
             btn_value = dropdown_btn.get_attribute("value") or ""
             if btn_value:  # has a value → already filled
@@ -760,11 +842,9 @@ class WorkdayApplicant:
         btn = field["element"]
         btn.click()
         # Wait for dropdown popup listbox
-        listbox = self._page.wait_for_selector(
-            '[data-popper-placement] [role="listbox"]', timeout=_TIMEOUT
-        )
+        listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
         # Collect available options
-        options = listbox.query_selector_all('[role="option"]')
+        options = listbox.query_selector_all(_SEL["dropdown_option"])
         available = []
         option_map = {}
         for opt in options:
@@ -782,7 +862,7 @@ class WorkdayApplicant:
                 option_map[norm_candidate].click()
                 # Wait for dropdown popup to close before proceeding
                 self._page.wait_for_selector(
-                    '[data-popper-placement] [role="listbox"]', state="hidden", timeout=_TIMEOUT
+                    _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
                 )
                 return
 
@@ -804,13 +884,13 @@ class WorkdayApplicant:
 
         # Open dropdown to get all options
         search_input.click()
-        dropdown = self._page.wait_for_selector('[data-automation-id="activeListContainer"]', timeout=_TIMEOUT)
+        dropdown = self._page.wait_for_selector(_SEL["active_list"], timeout=_TIMEOUT)
 
         # Collect all available options from THIS dropdown only
-        menu_items = dropdown.query_selector_all('[data-automation-id="menuItem"]')
+        menu_items = dropdown.query_selector_all(_SEL["menu_item"])
         available = {}
         for item in menu_items:
-            label_el = item.query_selector('[data-automation-id="promptOption"]')
+            label_el = item.query_selector(_SEL["prompt_option"])
             if label_el:
                 label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
                 available[label.lower()] = item
@@ -830,15 +910,13 @@ class WorkdayApplicant:
 
                     # Check if a sub-menu appeared (back button = category expanded)
                     try:
-                        self._page.wait_for_selector(
-                            '[data-automation-id="backButton"]', timeout=3000
-                        )
+                        self._page.wait_for_selector(_SEL["back_button"], timeout=3000)
                         # Sub-menu is open — click the matching leaf item
-                        sub_dropdown = self._page.query_selector('[data-automation-id="activeListContainer"]')
+                        sub_dropdown = self._page.query_selector(_SEL["active_list"])
                         if sub_dropdown:
-                            sub_items = sub_dropdown.query_selector_all('[data-automation-id="menuItem"]')
+                            sub_items = sub_dropdown.query_selector_all(_SEL["menu_item"])
                             for sub_item in sub_items:
-                                sub_label_el = sub_item.query_selector('[data-automation-id="promptOption"]')
+                                sub_label_el = sub_item.query_selector(_SEL["prompt_option"])
                                 if sub_label_el:
                                     sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
                                     if candidate.lower() in sub_label.lower():
