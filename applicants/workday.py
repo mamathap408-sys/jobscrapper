@@ -84,6 +84,9 @@ _SEL = {
     "resume_page":      '[data-automation-id="resumeUpload"]',
     "resume_upload":    'input[data-automation-id="file-upload-input-ref"]',
     "resume_uploaded":  '[data-automation-id="file-upload-item"]',
+
+    # Experience page fields
+    "exp_job_title":    '[data-automation-id="formField-jobTitle"]',
 }
 
 def _parse_job_url(url: str) -> tuple[str, str]:
@@ -400,7 +403,10 @@ class WorkdayApplicant:
         """Click the Save and Continue button and wait for next page to load."""
         btn = self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
         btn.click()
-        self._page.wait_for_load_state("domcontentloaded")
+        self._page.wait_for_load_state("networkidle")
+        # Workday SPA may auto-advance past pages (e.g. My Experience after autofill);
+        # allow time for any auto-transitions to settle before re-detecting page type.
+        time.sleep(5)
 
     def _is_submit_page(self) -> bool:
         """Check if the current page has a Submit button."""
@@ -457,6 +463,7 @@ class WorkdayApplicant:
         for i, exp in enumerate(work_exp):
             logger.info("  Adding work experience %d: %s at %s", i + 1, exp.get("jobTitle", ""), exp.get("companyName", ""))
             self._click_section_add("Work-Experience")
+            self._page.wait_for_selector(_SEL["exp_job_title"], timeout=_TIMEOUT)
             self._fill_work_experience_entry(exp)
 
         # Fill education entries
