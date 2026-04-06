@@ -27,6 +27,7 @@ candidateIsPreviousWorker: "No"
 education:
   school: ["xxxx"]
   degree: ["Bachelor of Technology", "B.Tech", "BTech", "Bachelor's Degree", "Bachelor of Engineering", "B.E.", "B.S."]
-  fieldOfStudy: "Electronics and Communication Engineering"
+  fieldOfStudy: ["Electronics and Communication Engineering", "Electronics Engineering", "Engineering"]
+  gradeAverage: "7.5"
   startDate: "08/2018"
   endDate: "05/2022"

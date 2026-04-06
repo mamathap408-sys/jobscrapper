@@ -560,6 +560,10 @@ class WorkdayApplicant:
         if edu.get("fieldOfStudy"):
             self._fill_searchable_field("fieldOfStudy", edu["fieldOfStudy"])
 
+        # GPA
+        if edu.get("gradeAverage"):
+            self._fill_experience_field("gradeAverage", edu["gradeAverage"])
+
         # Date fields
         if edu.get("startDate"):
             self._fill_date_field("startDate", edu["startDate"])
@@ -593,16 +597,34 @@ class WorkdayApplicant:
             search_input.type(candidate)
             search_input.press("Enter")
 
-            # Check if a selectedItem pill appeared (success)
+            # Check if Enter auto-selected (works for school)
             try:
-                container.wait_for_selector(_SEL["selected_item"], timeout=3000)
+                container.wait_for_selector(_SEL["selected_item"], timeout=2000)
                 logger.info("  Searchable '%s': selected with '%s'", field_name, candidate)
                 return
             except PlaywrightTimeout:
-                # No match — clear and try next candidate
-                search_input.fill("")
-                logger.info("  Searchable '%s': no match for '%s'", field_name, candidate)
-                continue
+                pass  # Enter didn't work — try clicking from dropdown
+
+            # Fallback: find and click matching item from filtered dropdown results
+            dropdown = self._page.query_selector(_SEL["active_list"])
+            if dropdown:
+                menu_items = dropdown.query_selector_all(_SEL["menu_item"])
+                for item in menu_items:
+                    label_el = item.query_selector(_SEL["prompt_option"])
+                    if label_el:
+                        label = label_el.get_attribute("data-automation-label") or ""
+                        if self._normalize_text(candidate) == self._normalize_text(label):
+                            item.click()
+                            try:
+                                container.wait_for_selector(_SEL["selected_item"], timeout=3000)
+                                logger.info("  Searchable '%s': clicked and confirmed '%s'", field_name, label)
+                                return
+                            except PlaywrightTimeout:
+                                break
+
+            # No match — clear and try next candidate
+            search_input.fill("")
+            logger.info("  Searchable '%s': no match for '%s'", field_name, candidate)
 
         raise WorkdayApplyError(
             f"No matching option for searchable field '{field_name}'. Tried: {candidates}"
