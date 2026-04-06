@@ -18,6 +18,9 @@ legalName--title: "xxxx"
 # My Information - Phone
 phoneType: "xxxx"
 phoneNumber: "xxxx"
+# My Information - Country & Phone
+country: "India"
+countryPhoneCode: "+91"
 
 # My Information - Screening
 source: ["Company career website", "Other Source"]
@@ -31,3 +34,10 @@ education:
   gradeAverage: "7.5"
   startDate: "08/2018"
   endDate: "05/2022"
+
+languages:
+  - language: "English"
+    native: false
+    reading: ["Fluent", "Advanced"]
+    speaking: ["Fluent", "Advanced"]
+    writing: ["Fluent", "Advanced"]

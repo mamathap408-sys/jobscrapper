@@ -49,7 +49,7 @@ def _parse_llm_json(text: str) -> dict:
 
 
 # Default timeout for waiting on Workday elements (ms)
-_TIMEOUT = 15_000
+_TIMEOUT = 30_000
 
 # ── Workday Selectors ──────────────────────────────────────────
 # Keyed by logical name. These are data-automation-id based selectors
@@ -91,6 +91,11 @@ _SEL = {
     "exp_degree":           '[data-automation-id="formField-degree"]',
     "exp_currently_here":   '[data-automation-id="formField-currentlyWorkHere"] input[type="checkbox"]',
     "exp_role_desc":        '[data-automation-id="formField-roleDescription"] textarea',
+    "exp_skills":           '[data-automation-id="formField-skills"]',
+    "exp_language":         '[data-automation-id="formField-language"]',
+    "exp_native":           '[data-automation-id="formField-native"] input[type="checkbox"]',
+    "lang_panels":          '[role="group"][aria-labelledby*="Languages-"]',
+    "form_field_all":       '[data-automation-id^="formField-"]',
 
     # Common widget selectors
     "multiselect":          '[data-automation-id="multiSelectContainer"]',
@@ -106,6 +111,7 @@ _SEL = {
     "dropdown_btn":         'button[aria-haspopup="listbox"]',
     "dropdown_listbox":     '[data-popper-placement] [role="listbox"]',
     "dropdown_option":      '[role="option"]',
+    "dropdown_real_option": '[data-popper-placement] [role="option"]:not([aria-disabled])',
 }
 
 def _parse_job_url(url: str) -> tuple[str, str]:
@@ -359,9 +365,10 @@ class WorkdayApplicant:
         if self._page.query_selector(_SEL["continue_btn"]):
             logger.info("Existing application found — deleting before re-applying")
             self._delete_existing_application()
-            # Navigate back to job page
+            # Go back to job page and reload to get fresh state
             self._page.go_back()
             self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+            self._page.reload(wait_until="networkidle")
             self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
 
         self._page.query_selector(_SEL["apply_btn"]).click()
@@ -427,7 +434,7 @@ class WorkdayApplicant:
         self._page.wait_for_load_state("networkidle")
         # Workday SPA may auto-advance past pages (e.g. My Experience after autofill);
         # allow time for any auto-transitions to settle before re-detecting page type.
-        time.sleep(5)
+        time.sleep(10)
 
     def _is_submit_page(self) -> bool:
         """Check if the current page has a Submit button."""
@@ -440,9 +447,10 @@ class WorkdayApplicant:
     def _fill_application(self, job: dict, pdf_path: Path, resume_data: dict):
         """Walk through the Workday application form dynamically."""
 
-        # Step 1: Resume upload
+        # Step 1: Resume upload — wait 30s after upload for autofill to populate skills etc.
         self._page.wait_for_selector(_SEL["resume_page"], timeout=_TIMEOUT)
         self._upload_resume(pdf_path)
+        time.sleep(5)
         self._click_next()
 
         # Steps 2+: Fill pages until Submit
@@ -473,6 +481,18 @@ class WorkdayApplicant:
 
     # ── My Experience Page ──────────────────────────────────────
 
+    def _clear_section(self, section_id: str):
+        """Delete all existing entries in a section (e.g. autofill leftovers)."""
+        section = self._page.query_selector(f'[aria-labelledby="{section_id}-section"]')
+        if not section:
+            return
+        while True:
+            delete_btn = section.query_selector("button:has(svg.wd-icon-trash)")
+            if not delete_btn:
+                break
+            delete_btn.click()
+            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+
     def _fill_experience_page(self, resume_data: dict):
         """Fill the My Experience page.
 
@@ -480,6 +500,11 @@ class WorkdayApplicant:
         Education comes from workday_answers.yaml (static).
         """
         logger.info("Filling My Experience page")
+
+        # Clear autofill entries (keep skills and resume untouched)
+        self._clear_section("Work-Experience")
+        self._clear_section("Education")
+        self._clear_section("Languages")
 
         work_exp = resume_data.get("work_experience", [])
 
@@ -497,6 +522,23 @@ class WorkdayApplicant:
         self._page.wait_for_selector(_SEL["exp_school"], timeout=_TIMEOUT)
         self._fill_education_entry(edu)
 
+        # Fill languages (from workday_answers.yaml)
+        languages = self._workday_fields.get("languages", [])
+        for i, lang in enumerate(languages):
+            logger.info("  Adding language %d: %s", i + 1, lang.get("language", ""))
+            self._click_section_add("Languages")
+            self._page.wait_for_selector(_SEL["exp_language"], timeout=_TIMEOUT)
+            self._fill_language_entry(lang)
+
+        # Verify skills and resume are populated (from autofill)
+        skills_container = self._page.query_selector(_SEL["exp_skills"])
+        if skills_container:
+            selected_skills = skills_container.query_selector(_SEL["selected_item"])
+            if not selected_skills:
+                raise WorkdayApplyError("Skills section is empty — autofill did not populate skills")
+        resume_uploaded = self._page.query_selector(_SEL["resume_uploaded"])
+        if not resume_uploaded:
+            raise WorkdayApplyError("Resume not found on experience page — upload may have failed")
 
     def _click_section_add(self, section_id: str):
         """Click the 'Add' button within a section group."""
@@ -569,6 +611,44 @@ class WorkdayApplicant:
             self._fill_date_field("startDate", edu["startDate"])
         if edu.get("endDate"):
             self._fill_date_field("endDate", edu["endDate"])
+
+    def _fill_language_entry(self, lang: dict):
+        """Fill a single language entry after clicking Add."""
+        # Find the last language panel (the one just added)
+        panels = self._page.query_selector_all(_SEL["lang_panels"])
+        if not panels:
+            raise WorkdayApplyError("No language panel found after clicking Add")
+        panel = panels[-1]
+
+        # Language — dropdown (scoped to panel)
+        if lang.get("language"):
+            container = panel.query_selector(_SEL["exp_language"])
+            if container:
+                dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
+                if dropdown_btn:
+                    field = {"field_name": "language", "element": dropdown_btn}
+                    self._fill_custom_dropdown(field, lang["language"])
+
+        # Native checkbox (scoped to panel)
+        if lang.get("native"):
+            checkbox = panel.query_selector(_SEL["exp_native"])
+            if checkbox and checkbox.get_attribute("aria-checked") != "true":
+                checkbox.click()
+
+        # Reading/Speaking/Writing — find dropdowns by label within panel
+        for proficiency in ["Reading", "Speaking", "Writing"]:
+            value = lang.get(proficiency.lower())
+            if not value:
+                continue
+            containers = panel.query_selector_all(_SEL["form_field_all"])
+            for c in containers:
+                label_el = c.query_selector("label")
+                if label_el and label_el.inner_text().strip().rstrip("*").strip() == proficiency:
+                    btn = c.query_selector(_SEL["dropdown_btn"])
+                    if btn:
+                        field = {"field_name": proficiency.lower(), "element": btn}
+                        self._fill_custom_dropdown(field, value, substring_match=True)
+                    break
 
     def _fill_searchable_field(self, field_name: str, value):
         """Fill a searchable multiselect field by typing and pressing Enter.
@@ -720,14 +800,11 @@ class WorkdayApplicant:
         return fields
 
     def _classify_field(self, container, field_name: str) -> dict | None:
-        """Classify a formField container and return a field descriptor, or None if already filled."""
+        """Classify a formField container and return a field descriptor."""
 
         # Check for radio buttons
         radios = container.query_selector_all("input[type='radio']")
         if radios:
-            checked = container.query_selector("input[type='radio']:checked")
-            if checked:
-                return None  # already answered
             options = []
             for r in radios:
                 r_id = r.get_attribute("id") or ""
@@ -747,10 +824,6 @@ class WorkdayApplicant:
         # Check for multiselect widget
         multiselect = container.query_selector(_SEL["multiselect"])
         if multiselect:
-            # Check if already has selections
-            selected = container.query_selector(_SEL["selected_item"])
-            if selected:
-                return None  # already filled
             return {
                 "field_name": field_name,
                 "label": self._get_container_label(container),
@@ -764,9 +837,6 @@ class WorkdayApplicant:
         # Check for custom dropdown (button with aria-haspopup="listbox")
         dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
         if dropdown_btn:
-            btn_value = dropdown_btn.get_attribute("value") or ""
-            if btn_value:  # has a value → already filled
-                return None
             return {
                 "field_name": field_name,
                 "label": self._get_container_label(container),
@@ -780,8 +850,6 @@ class WorkdayApplicant:
         # Check for textarea
         textarea = container.query_selector("textarea")
         if textarea:
-            if (textarea.input_value() or "").strip():
-                return None
             return {
                 "field_name": field_name,
                 "label": self._get_container_label(container),
@@ -795,8 +863,6 @@ class WorkdayApplicant:
         # Check for text input
         text_input = container.query_selector("input[type='text']")
         if text_input:
-            if (text_input.input_value() or "").strip():
-                return None
             return {
                 "field_name": field_name,
                 "label": self._get_container_label(container),
@@ -856,15 +922,17 @@ class WorkdayApplicant:
         nfkd = unicodedata.normalize("NFKD", text)
         return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
 
-    def _fill_custom_dropdown(self, field: dict, value):
+    def _fill_custom_dropdown(self, field: dict, value, substring_match: bool = False):
         """Fill a Workday custom dropdown (button with listbox).
 
         Value can be a string or a list of strings (priority order, first match wins).
+        If substring_match=True, also matches candidates as substrings of option text.
         """
         btn = field["element"]
         btn.click()
-        # Wait for dropdown popup listbox
+        # Wait for dropdown popup listbox and real options to load
         listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
+        self._page.wait_for_selector(_SEL["dropdown_real_option"], timeout=_TIMEOUT)
         # Collect available options
         options = listbox.query_selector_all(_SEL["dropdown_option"])
         available = []
@@ -880,13 +948,22 @@ class WorkdayApplicant:
         # Try each candidate in priority order
         for candidate in candidates:
             norm_candidate = self._normalize_text(candidate)
+            # Exact match
             if norm_candidate in option_map:
                 option_map[norm_candidate].click()
-                # Wait for dropdown popup to close before proceeding
                 self._page.wait_for_selector(
                     _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
                 )
                 return
+            # Substring match
+            if substring_match:
+                for opt_key, opt_el in option_map.items():
+                    if norm_candidate in opt_key:
+                        opt_el.click()
+                        self._page.wait_for_selector(
+                            _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
+                        )
+                        return
 
         raise WorkdayApplyError(
             f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
@@ -896,66 +973,74 @@ class WorkdayApplicant:
         """Fill a Workday multiselect widget (search and select).
 
         Value can be a string or a list of strings (priority order, first match wins).
-        Opens dropdown, collects all available options, then selects the first priority match.
+        Types each candidate to filter results, then clicks the matching option.
         """
         container = field["element"]
         search_input = container.query_selector("input")
         if not search_input:
             raise WorkdayApplyError(f"No search input found in multiselect: '{field['field_name']}'")
 
-
-        # Open dropdown to get all options
-        search_input.click()
-        dropdown = self._page.wait_for_selector(_SEL["active_list"], timeout=_TIMEOUT)
-
-        # Collect all available options from THIS dropdown only
-        menu_items = dropdown.query_selector_all(_SEL["menu_item"])
-        available = {}
-        for item in menu_items:
-            label_el = item.query_selector(_SEL["prompt_option"])
-            if label_el:
-                label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
-                available[label.lower()] = item
-
-        logger.info("  Multiselect '%s' has %d options: %s",
-                    field["field_name"], len(available), list(available.keys()))
-
-        # Normalize value to a priority list
         candidates = value if isinstance(value, list) else [value]
 
-        # Select the first candidate that matches an available option
         for candidate in candidates:
-            for label, item in available.items():
-                if candidate.lower() == label or candidate.lower() in label:
-                    item.click()
-                    logger.info("  Multiselect '%s': clicked '%s'", field["field_name"], label)
+            # Type candidate and press Enter to search/select
+            search_input.click(force=True)
+            search_input.fill("")
+            search_input.type(candidate)
+            search_input.press("Enter")
 
-                    # Check if a sub-menu appeared (back button = category expanded)
-                    try:
-                        self._page.wait_for_selector(_SEL["back_button"], timeout=3000)
-                        # Sub-menu is open — click the matching leaf item
-                        sub_dropdown = self._page.query_selector(_SEL["active_list"])
-                        if sub_dropdown:
-                            sub_items = sub_dropdown.query_selector_all(_SEL["menu_item"])
-                            for sub_item in sub_items:
-                                sub_label_el = sub_item.query_selector(_SEL["prompt_option"])
-                                if sub_label_el:
-                                    sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
-                                    if candidate.lower() in sub_label.lower():
-                                        sub_item.click()
-                                        logger.info("  Multiselect '%s': selected leaf '%s'", field["field_name"], sub_label)
-                                        return
-                            # No exact match in sub-menu, click first item
-                            if sub_items:
-                                sub_items[0].click()
-                                logger.info("  Multiselect '%s': selected first sub-item", field["field_name"])
-                    except PlaywrightTimeout:
-                        pass  # No sub-menu — selection was made directly
+            # Check if Enter auto-selected (pill appeared)
+            try:
+                field["container"].wait_for_selector(_SEL["selected_item"], timeout=3000)
+                logger.info("  Multiselect '%s': auto-selected with '%s'", field["field_name"], candidate)
+                return
+            except PlaywrightTimeout:
+                pass  # Enter didn't auto-select — try clicking from dropdown
 
-                    return
+            # Fallback: look for filtered dropdown and click matching item
+            dropdown = self._page.query_selector(_SEL["active_list"])
+            if not dropdown:
+                search_input.fill("")
+                logger.info("  Multiselect '%s': no dropdown for '%s'", field["field_name"], candidate)
+                continue
+
+            menu_items = dropdown.query_selector_all(_SEL["menu_item"])
+            for item in menu_items:
+                label_el = item.query_selector(_SEL["prompt_option"])
+                if label_el:
+                    label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
+                    if candidate.lower() == label.lower() or candidate.lower() in label.lower():
+                        item.click()
+                        logger.info("  Multiselect '%s': selected '%s'", field["field_name"], label)
+
+                        # Check if a sub-menu appeared (back button = category expanded)
+                        try:
+                            self._page.wait_for_selector(_SEL["back_button"], timeout=3000)
+                            sub_dropdown = self._page.query_selector(_SEL["active_list"])
+                            if sub_dropdown:
+                                sub_items = sub_dropdown.query_selector_all(_SEL["menu_item"])
+                                for sub_item in sub_items:
+                                    sub_label_el = sub_item.query_selector(_SEL["prompt_option"])
+                                    if sub_label_el:
+                                        sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
+                                        if candidate.lower() in sub_label.lower():
+                                            sub_item.click()
+                                            logger.info("  Multiselect '%s': selected leaf '%s'", field["field_name"], sub_label)
+                                            return
+                                if sub_items:
+                                    sub_items[0].click()
+                                    logger.info("  Multiselect '%s': selected first sub-item", field["field_name"])
+                        except PlaywrightTimeout:
+                            pass  # No sub-menu — selection was made directly
+
+                        return
+
+            # No match in results — clear and try next candidate
+            search_input.fill("")
+            logger.info("  Multiselect '%s': no match for '%s'", field["field_name"], candidate)
 
         raise WorkdayApplyError(
-            f"No matching option for multiselect '{field['field_name']}'. Available: {list(available.keys())}, Candidates: {candidates}"
+            f"No matching option for multiselect '{field['field_name']}'. Candidates: {candidates}"
         )
 
     def _fill_radio(self, field: dict, value: str):
