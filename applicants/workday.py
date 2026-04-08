@@ -35,18 +35,6 @@ from services.genai_client import GenAIClient
 
 logger = logging.getLogger(__name__)
 
-def _parse_llm_json(text: str) -> dict:
-    """Extract JSON object from LLM response (handles markdown fences)."""
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```\w*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-        text = text.strip()
-    matches = list(re.finditer(r"\{[^{}]*\}", text))
-    if matches:
-        return json.loads(matches[-1].group())
-    return json.loads(text)
-
 
 # Default timeout for waiting on Workday elements (ms)
 _TIMEOUT = 30_000
@@ -112,6 +100,10 @@ _SEL = {
     "dropdown_listbox":     '[data-popper-placement] [role="listbox"]',
     "dropdown_option":      '[role="option"]',
     "dropdown_real_option": '[data-popper-placement] [role="option"]:not([aria-disabled])',
+
+    # Application Questions page
+    "questions_page":       '[data-automation-id="applyFlowPrimaryQuestionsPage"]',
+    "legend_richtext":      'legend [data-automation-id="richText"]',
 }
 
 def _parse_job_url(url: str) -> tuple[str, str]:
@@ -177,11 +169,14 @@ class WorkdayApplyError(Exception):
 class WorkdayApplicant:
     """Automates Workday job application form submission."""
 
-    def __init__(self, config: dict, answers: dict):
+    def __init__(self, config: dict, answers: dict, answers_raw: str = ""):
+        if not answers_raw:
+            raise WorkdayApplyError("answers_raw is required — raw answers.yaml content must be provided")
         self._apply_cfg = config.get("apply", {})
         self._genai_cfg = config.get("genai", {})
         self._profiles = config.get("profiles", [])
         self._answers = answers
+        self._answers_raw = answers_raw
         self._personal = answers.get("personal", {})
         self._work_exp = answers.get("work_experience", [])
         self._education = answers.get("education", [])
@@ -298,6 +293,11 @@ class WorkdayApplicant:
         Raises:
             WorkdayApplyError: On any application step failure.
         """
+        if not job.get("job_description"):
+            raise WorkdayApplyError(
+                f"Job description is missing for '{job.get('title', '')}' — cannot apply without it"
+            )
+
         job_url = job["url"]
         tenant = _get_tenant(job_url)
 
@@ -780,10 +780,28 @@ class WorkdayApplicant:
 
     # ── Generic Page Filler ────────────────────────────────────
 
+    def _get_dropdown_options(self, field: dict) -> list[str]:
+        """Open a dropdown, read available options, close it, return option texts."""
+        btn = field["element"]
+        btn.click()
+        try:
+            listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=5000)
+            self._page.wait_for_selector(_SEL["dropdown_real_option"], timeout=5000)
+            options = listbox.query_selector_all(_SEL["dropdown_option"])
+            texts = [opt.inner_text().strip() for opt in options if opt.inner_text().strip()]
+        except PlaywrightTimeout:
+            texts = []
+        # Close dropdown by pressing Escape
+        self._page.keyboard.press("Escape")
+        time.sleep(0.3)
+        return texts
+
     def _fill_form_page(self, job: dict):
         """Detect and fill all form fields on the current page."""
         fields = self._scan_page_fields()
         logger.info("Page has %d fillable field(s)", len(fields))
+
+        ai_fields = []  # Fields that need LLM answers
 
         for field in fields:
             name = field["field_name"]
@@ -805,12 +823,28 @@ class WorkdayApplicant:
                 logger.debug("  Skipping optional: '%s'", name)
                 continue
 
-            # Unknown required field → AI fallback
-            logger.info("  AI fallback for required field: '%s' (label: '%s')",
-                        name, field["label"][:60])
-            answer = self._ask_llm(field["label"], field["input_type"],
-                                   field.get("options", []), job)
-            self._fill_field_by_type(field, answer)
+            # Guard: fail if label is blank or too short (bad parse)
+            if not field["label"] or len(field["label"].strip()) < 5:
+                raise WorkdayApplyError(
+                    f"Cannot answer field '{name}': question text is blank or too short to interpret"
+                )
+
+            # For dropdowns, pre-fetch available options so LLM knows valid choices
+            options = field.get("options", [])
+            if field["input_type"] == "dropdown" and not options:
+                options = self._get_dropdown_options(field)
+                field["options"] = options
+
+            ai_fields.append(field)
+
+        # Batch AI answering (up to 10 per call)
+        if ai_fields:
+            logger.info("  Sending %d question(s) to AI in batch", len(ai_fields))
+            answers = self._ask_llm_batch(ai_fields, job)
+            for field, answer in zip(ai_fields, answers):
+                logger.info("  Filling AI answer for '%s' → '%s'",
+                            field["field_name"], str(answer)[:40])
+                self._fill_field_by_type(field, answer)
 
     def _scan_page_fields(self) -> list[dict]:
         """Scan the current page for all fillable form fields.
@@ -921,7 +955,11 @@ class WorkdayApplicant:
         label = container.query_selector("label")
         if label:
             return label.inner_text().strip().rstrip("*").strip()
-        legend = container.query_selector("legend label")
+        # Application Questions page: text is inside legend > div[data-automation-id="richText"]
+        rich_text = container.query_selector(_SEL["legend_richtext"])
+        if rich_text:
+            return rich_text.inner_text().strip().rstrip("*").strip()
+        legend = container.query_selector("legend")
         if legend:
             return legend.inner_text().strip().rstrip("*").strip()
         return ""
@@ -1040,50 +1078,97 @@ class WorkdayApplicant:
             f"No exact radio match for '{field['field_name']}': '{value}'. Available: {available}"
         )
 
-    def _ask_llm(self, question: str, input_type: str,
-                 options: list[str], job: dict) -> str:
-        """Ask the LLM to answer a screening question."""
-        profile_text = self._build_profile_text()
-        options_text = ""
-        if options:
-            options_text = f"\nAvailable options: {json.dumps(options)}"
 
-        prompt = f"""You are filling out a job application for the following position:
+    def _ask_llm_batch(self, fields: list[dict], job: dict) -> list[str]:
+        """Ask the LLM to answer multiple screening questions in one call.
+
+        Sends up to 10 questions per batch. Returns answers in the same order.
+        """
+        profile_text = self._build_profile_text()
+        answers_content = self._answers_raw
+        all_answers = []
+
+        for i in range(0, len(fields), 10):
+            batch = fields[i:i + 10]
+            questions_block = ""
+            for idx, field in enumerate(batch, 1):
+                options_text = ""
+                if field.get("options"):
+                    options_text = f"  Options: {json.dumps(field['options'])}"
+                questions_block += (
+                    f"\n{idx}. Question: \"{field['label']}\"\n"
+                    f"   Input type: {field['input_type']}\n"
+                    f"{options_text}\n"
+                )
+
+            prompt = f"""You are filling out a job application for the following position:
   Title: {job.get('title', '')}
   Company: {job.get('company', '')}
-  Description (excerpt): {(job.get('job_description', '') or '')[:2000]}
+  Description: {job['job_description']}
 
 The applicant's profile:
 {profile_text}
 
-Answer the following application question concisely and truthfully.
-Return a JSON object with exactly two keys:
+The applicant's answers reference (use this to inform your responses):
+{answers_content}
+
+Answer ALL of the following application questions concisely and truthfully.
+Return a JSON array with one object per question, in order. Each object must have:
   "answer": the text to type or option to select (string, 1-3 sentences max for text fields)
   "confidence": how confident you are this is a good answer (1-10 integer)
 
-Question: "{question}"
-Input type: {input_type}{options_text}
+IMPORTANT:
+- If a question seems blank, garbled, incomplete, or impossible to understand, set confidence to 1.
+- If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
+- Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
+- For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format.
 
-If the input type is "select" or "radio", the answer MUST be one of the available options exactly.
+Questions:
+{questions_block}
+Return ONLY the JSON array, no markdown fences or extra text."""
 
-Return ONLY the JSON object, no markdown fences or extra text."""
+            try:
+                response = self._genai.chat(prompt, system_role=_SYSTEM_ROLE)
+                parsed = self._parse_llm_batch_response(response, len(batch))
 
-        try:
-            response = self._genai.chat(prompt, system_role=_SYSTEM_ROLE)
-            parsed = _parse_llm_json(response)
-            answer = parsed.get("answer", "")
-            confidence = int(parsed.get("confidence", 0))
+                for idx, (field, item) in enumerate(zip(batch, parsed)):
+                    answer = item.get("answer", "")
+                    confidence = int(item.get("confidence", 0))
+                    logger.info("  LLM batch answer %d (confidence=%d): '%s'",
+                                idx + 1, confidence, str(answer)[:60])
 
-            logger.info("  LLM answer (confidence=%d): '%s'", confidence, answer[:60])
+                    if confidence < self._confidence_threshold:
+                        raise WorkdayApplyError(
+                            f"LLM confidence too low ({confidence}) for question: "
+                            f"{field['label'][:80]}"
+                        )
+                    all_answers.append(str(answer))
 
-            if confidence < self._confidence_threshold:
-                raise WorkdayApplyError(
-                    f"LLM confidence too low ({confidence}) for question: {question[:80]}"
-                )
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                raise WorkdayApplyError(f"Failed to parse LLM batch response: {e}") from e
 
-            return str(answer)
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            raise WorkdayApplyError(f"Failed to parse LLM answer for '{question[:60]}': {e}") from e
+        return all_answers
+
+    @staticmethod
+    def _parse_llm_batch_response(text: str, expected_count: int) -> list[dict]:
+        """Parse a JSON array from LLM batch response."""
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```\w*\n?", "", text)
+            text = re.sub(r"\n?```$", "", text)
+            text = text.strip()
+        # Find JSON array
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1:
+            parsed = json.loads(text[start:end + 1])
+        else:
+            parsed = json.loads(text)
+        if not isinstance(parsed, list) or len(parsed) != expected_count:
+            raise ValueError(
+                f"Expected {expected_count} answers, got {len(parsed) if isinstance(parsed, list) else 'non-array'}"
+            )
+        return parsed
 
     def _build_profile_text(self) -> str:
         """Build a profile summary from config for LLM context."""

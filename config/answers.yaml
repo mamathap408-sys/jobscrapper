@@ -62,11 +62,9 @@ qa:
   "when can you start": "Immediately"
   "what is your current notice period in days": "0"
 
-  # Salary
-  "what are your salary expectations": "As per company standards"
-  "what is your expected annual salary": "As per company standards"
-  "what is your expected ctc": "As per company standards"
-  "salary expectations in inr": "As per company standards"
+  # Salary — LLM decides based on role/company from job description
+  # Range: 6-12 LPA. For Example:- Software roles at good companies: 10-12 LPA. Associate roles: 6-8 LPA.
+  "Expected compensation": "6-12 LPA INR"
 
   # Previous employment
   "have you previously worked at this company": "No"
@@ -105,6 +103,48 @@ qa:
 
   # Gender / demographics (if asked outside self-identification page)
   "gender": "xxxx"
+
+  # Citizenship & residency
+  "are you a citizen of india": "Yes"
+  "what is your citizenship": "Indian"
+  "what is your nationality": "Indian"
+  "country of residence": "India"
+
+  # Sponsorship (additional variants)
+  "will you now or in the future require sponsorship for employment visa to work in the country you are applying to work in": "No"
+
+  # Previous employer
+  "are you a current or former employee": "No"
+  "previous employer": "xxxx"
+  "most recent employer": "xxxx"
+
+  # Military / veteran
+  "have you served in the military": "No"
+  "are you a veteran": "No"
+  "veteran status": "I am not a veteran"
+  "military service": "No"
+  "protected veteran": "I am not a protected veteran"
+
+  # Non-compete / restrictions
+  "do you have any non-compete/non-solicitation or other agreements that prevents or restricts you from performing the job": "No"
+  "do you have any non-compete agreements": "No"
+
+  # Board / fiduciary / outside employment
+  "do you have any fiduciary appointments": "No"
+  "are you currently a member of or do you currently serve in any capacity on a board of directors": "No"
+  "do you currently have or plan to have any employment or other work that you intend to continue": "No"
+  "do you currently have 25% or more ownership interest in any for-profit business entity": "No"
+  "do you currently serve or plan to serve in any position of control with a for-profit business": "No"
+
+  # Government / political
+  "are you currently serving as or planning to serve as an elected or appointed official": "No"
+  "are you currently serving in or planning to serve in any paid or unpaid position on a political campaign": "No"
+
+  # Family / relatives at company
+  "do you have a family relationship or are you a close personal contact of any employees": "No"
+  "do you have any relatives working at this company": "No"
+  "do you have relatives employed by this organization": "No"
+
 
   # Referral
   "were you referred by an employee": "No"

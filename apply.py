@@ -21,6 +21,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from config import load_config, load_answers
+from config.loader import ANSWERS_PATH
 from services.db import JobDatabase
 from applicants import detect_applicant_type, get_applicant
 from applicants.resume_parser import parse_resume_tex
@@ -195,7 +196,8 @@ def main():
         # Process each applicant type
         for atype, type_jobs in jobs_by_type.items():
             logger.info("Starting %s applicant for %d job(s)", atype, len(type_jobs))
-            applicant = get_applicant(atype, config=config, answers=answers)
+            answers_raw = ANSWERS_PATH.read_text()
+            applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
             applicant.start()
 
             try:
