@@ -584,7 +584,7 @@ class WorkdayApplicant:
         """
         # School — searchable multiselect, try each name in priority list
         if edu.get("school"):
-            self._fill_searchable_field("school", edu["school"])
+            self._select_from_searchable("school", edu["school"])
 
         # Degree — custom dropdown
         if edu.get("degree"):
@@ -596,11 +596,11 @@ class WorkdayApplicant:
                         "field_name": "degree",
                         "element": dropdown_btn,
                     }
-                    self._fill_custom_dropdown(field, edu["degree"])
+                    self._select_from_dropdown(field, edu["degree"])
 
         # Field of Study — searchable multiselect
         if edu.get("fieldOfStudy"):
-            self._fill_searchable_field("fieldOfStudy", edu["fieldOfStudy"])
+            self._select_from_searchable("fieldOfStudy", edu["fieldOfStudy"])
 
         # GPA
         if edu.get("gradeAverage"):
@@ -627,7 +627,7 @@ class WorkdayApplicant:
                 dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
                 if dropdown_btn:
                     field = {"field_name": "language", "element": dropdown_btn}
-                    self._fill_custom_dropdown(field, lang["language"])
+                    self._select_from_dropdown(field, lang["language"])
 
         # Native checkbox (scoped to panel)
         if lang.get("native"):
@@ -647,20 +647,40 @@ class WorkdayApplicant:
                     btn = c.query_selector(_SEL["dropdown_btn"])
                     if btn:
                         field = {"field_name": proficiency.lower(), "element": btn}
-                        self._fill_custom_dropdown(field, value, substring_match=True)
+                        self._select_from_dropdown(field, value, substring_match=True)
                     break
 
-    def _fill_searchable_field(self, field_name: str, value):
-        """Fill a searchable multiselect field by typing and pressing Enter.
+    def _select_from_searchable(self, field, value):
+        """Select a value from a type-to-search multiselect (server-filtered results).
 
-        Value can be a string or list of strings (priority order, first match wins).
-        Types each candidate, presses Enter, checks if a selectedItem pill appeared.
+        Used for fields with a text input that filters/fetches options as you type.
+        Selection creates a "pill" chip in the input. The full option list is never
+        visible at once — results are fetched server-side based on typed text.
+
+        Examples:
+            - School: type "JNTUA" → Enter auto-selects → pill "JNTUA College of Engineering"
+            - Field of Study: type "Electronics" → dropdown appears → click exact match → pill
+            - Country Phone Code: type "+91" → filtered list → Enter/click → pill "+91 India"
+            - Source: type "Company" → shows "Company career website" → select → pill appears
+
+        Args:
+            field: Either a field_name string (e.g. "school") to look up by
+                   data-automation-id="formField-{name}", or a field dict with
+                   'element' (multiSelectContainer), 'container', and 'field_name'.
+            value: String or list of strings (priority order, first match wins).
         """
-        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
-        if not container:
-            raise WorkdayApplyError(f"Searchable field not found: '{field_name}'")
+        # Resolve container and field_name from either a string or field dict
+        if isinstance(field, str):
+            field_name = field
+            container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+            if not container:
+                raise WorkdayApplyError(f"Searchable field not found: '{field_name}'")
+            multiselect = container.query_selector(_SEL["multiselect"])
+        else:
+            field_name = field["field_name"]
+            container = field["container"]
+            multiselect = field["element"]
 
-        multiselect = container.query_selector(_SEL["multiselect"])
         if not multiselect:
             raise WorkdayApplyError(f"No multiselect in field: '{field_name}'")
 
@@ -671,38 +691,59 @@ class WorkdayApplicant:
         candidates = value if isinstance(value, list) else [value]
 
         for candidate in candidates:
-            # Clear and type search term, then press Enter
-            search_input.click()
+            # Type candidate and press Enter to search/select
+            search_input.click(force=True)
             search_input.fill("")
             search_input.type(candidate)
             search_input.press("Enter")
 
-            # Check if Enter auto-selected (works for school)
+            # Check if Enter auto-selected (pill appeared)
             try:
-                container.wait_for_selector(_SEL["selected_item"], timeout=2000)
+                container.wait_for_selector(_SEL["selected_item"], timeout=3000)
                 logger.info("  Searchable '%s': selected with '%s'", field_name, candidate)
                 return
             except PlaywrightTimeout:
-                pass  # Enter didn't work — try clicking from dropdown
+                pass  # Enter didn't auto-select — try clicking from dropdown
 
-            # Fallback: find and click matching item from filtered dropdown results
+            # Fallback: look for filtered dropdown and click matching item
             dropdown = self._page.query_selector(_SEL["active_list"])
-            if dropdown:
-                menu_items = dropdown.query_selector_all(_SEL["menu_item"])
-                for item in menu_items:
-                    label_el = item.query_selector(_SEL["prompt_option"])
-                    if label_el:
-                        label = label_el.get_attribute("data-automation-label") or ""
-                        if self._normalize_text(candidate) == self._normalize_text(label):
-                            item.click()
-                            try:
-                                container.wait_for_selector(_SEL["selected_item"], timeout=3000)
-                                logger.info("  Searchable '%s': clicked and confirmed '%s'", field_name, label)
-                                return
-                            except PlaywrightTimeout:
-                                break
+            if not dropdown:
+                search_input.fill("")
+                logger.info("  Searchable '%s': no dropdown for '%s'", field_name, candidate)
+                continue
 
-            # No match — clear and try next candidate
+            menu_items = dropdown.query_selector_all(_SEL["menu_item"])
+            for item in menu_items:
+                label_el = item.query_selector(_SEL["prompt_option"])
+                if label_el:
+                    label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
+                    if self._normalize_text(candidate) == self._normalize_text(label):
+                        item.click()
+                        logger.info("  Searchable '%s': selected '%s'", field_name, label)
+
+                        # Check if a sub-menu appeared (back button = category expanded)
+                        try:
+                            self._page.wait_for_selector(_SEL["back_button"], timeout=3000)
+                            sub_dropdown = self._page.query_selector(_SEL["active_list"])
+                            if sub_dropdown:
+                                sub_items = sub_dropdown.query_selector_all(_SEL["menu_item"])
+                                for sub_item in sub_items:
+                                    sub_label_el = sub_item.query_selector(_SEL["prompt_option"])
+                                    if sub_label_el:
+                                        sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
+                                        if self._normalize_text(candidate) == self._normalize_text(sub_label):
+                                            sub_item.click()
+                                            logger.info("  Searchable '%s': selected leaf '%s'", field_name, sub_label)
+                                            return
+                                if sub_items:
+                                    sub_items[0].click()
+                                    logger.info("  Searchable '%s': selected first sub-item", field_name)
+                        except PlaywrightTimeout:
+                            pass  # No sub-menu — selection was made directly
+
+                        return
+
+            # No match in results — clear and try next candidate
             search_input.fill("")
             logger.info("  Searchable '%s': no match for '%s'", field_name, candidate)
 
@@ -907,10 +948,10 @@ class WorkdayApplicant:
             field["element"].fill(fill_value)
 
         elif input_type == "dropdown":
-            self._fill_custom_dropdown(field, value)
+            self._select_from_dropdown(field, value)
 
         elif input_type == "multiselect":
-            self._fill_multiselect(field, value)
+            self._select_from_searchable(field, value)
 
         elif input_type == "radio":
             fill_value = value[0] if isinstance(value, list) else value
@@ -922,11 +963,22 @@ class WorkdayApplicant:
         nfkd = unicodedata.normalize("NFKD", text)
         return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
 
-    def _fill_custom_dropdown(self, field: dict, value, substring_match: bool = False):
-        """Fill a Workday custom dropdown (button with listbox).
+    def _select_from_dropdown(self, field: dict, value, substring_match: bool = False):
+        """Select a value from a click-to-open dropdown (all options pre-loaded).
 
-        Value can be a string or a list of strings (priority order, first match wins).
-        If substring_match=True, also matches candidates as substrings of option text.
+        Used for fields that show a button (e.g. "Select One") which, when clicked,
+        opens a popup listbox with all available options visible at once. No typing/search.
+
+        Examples:
+            - Degree: click → listbox shows "Bachelor of Technology", "Master's", etc.
+            - Language: click → listbox shows "English", "Hindi", "Telugu", etc.
+            - Proficiency (Reading/Speaking/Writing): click → "1 - Beginner", "3 - Fluent", etc.
+
+        Args:
+            field: Field descriptor with 'element' (the dropdown button) and 'field_name'.
+            value: String or list of strings (priority order, first match wins).
+            substring_match: If True, also matches candidates as substrings of option text.
+                             E.g. "Fluent" matches "3 - Fluent". Default False.
         """
         btn = field["element"]
         btn.click()
@@ -969,79 +1021,6 @@ class WorkdayApplicant:
             f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
         )
 
-    def _fill_multiselect(self, field: dict, value):
-        """Fill a Workday multiselect widget (search and select).
-
-        Value can be a string or a list of strings (priority order, first match wins).
-        Types each candidate to filter results, then clicks the matching option.
-        """
-        container = field["element"]
-        search_input = container.query_selector("input")
-        if not search_input:
-            raise WorkdayApplyError(f"No search input found in multiselect: '{field['field_name']}'")
-
-        candidates = value if isinstance(value, list) else [value]
-
-        for candidate in candidates:
-            # Type candidate and press Enter to search/select
-            search_input.click(force=True)
-            search_input.fill("")
-            search_input.type(candidate)
-            search_input.press("Enter")
-
-            # Check if Enter auto-selected (pill appeared)
-            try:
-                field["container"].wait_for_selector(_SEL["selected_item"], timeout=3000)
-                logger.info("  Multiselect '%s': auto-selected with '%s'", field["field_name"], candidate)
-                return
-            except PlaywrightTimeout:
-                pass  # Enter didn't auto-select — try clicking from dropdown
-
-            # Fallback: look for filtered dropdown and click matching item
-            dropdown = self._page.query_selector(_SEL["active_list"])
-            if not dropdown:
-                search_input.fill("")
-                logger.info("  Multiselect '%s': no dropdown for '%s'", field["field_name"], candidate)
-                continue
-
-            menu_items = dropdown.query_selector_all(_SEL["menu_item"])
-            for item in menu_items:
-                label_el = item.query_selector(_SEL["prompt_option"])
-                if label_el:
-                    label = label_el.get_attribute("data-automation-label") or label_el.inner_text().strip()
-                    if candidate.lower() == label.lower() or candidate.lower() in label.lower():
-                        item.click()
-                        logger.info("  Multiselect '%s': selected '%s'", field["field_name"], label)
-
-                        # Check if a sub-menu appeared (back button = category expanded)
-                        try:
-                            self._page.wait_for_selector(_SEL["back_button"], timeout=3000)
-                            sub_dropdown = self._page.query_selector(_SEL["active_list"])
-                            if sub_dropdown:
-                                sub_items = sub_dropdown.query_selector_all(_SEL["menu_item"])
-                                for sub_item in sub_items:
-                                    sub_label_el = sub_item.query_selector(_SEL["prompt_option"])
-                                    if sub_label_el:
-                                        sub_label = sub_label_el.get_attribute("data-automation-label") or sub_label_el.inner_text().strip()
-                                        if candidate.lower() in sub_label.lower():
-                                            sub_item.click()
-                                            logger.info("  Multiselect '%s': selected leaf '%s'", field["field_name"], sub_label)
-                                            return
-                                if sub_items:
-                                    sub_items[0].click()
-                                    logger.info("  Multiselect '%s': selected first sub-item", field["field_name"])
-                        except PlaywrightTimeout:
-                            pass  # No sub-menu — selection was made directly
-
-                        return
-
-            # No match in results — clear and try next candidate
-            search_input.fill("")
-            logger.info("  Multiselect '%s': no match for '%s'", field["field_name"], candidate)
-
-        raise WorkdayApplyError(
-            f"No matching option for multiselect '{field['field_name']}'. Candidates: {candidates}"
-        )
 
     def _fill_radio(self, field: dict, value: str):
         """Fill a radio button group by clicking the exact matching option."""
