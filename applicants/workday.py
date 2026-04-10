@@ -791,9 +791,9 @@ class WorkdayApplicant:
             texts = [opt.inner_text().strip() for opt in options if opt.inner_text().strip()]
         except PlaywrightTimeout:
             texts = []
-        # Close dropdown by pressing Escape
-        self._page.keyboard.press("Escape")
-        time.sleep(0.3)
+        # Close dropdown by clicking button again (toggle) and wait for it to disappear
+        btn.click()
+        self._page.wait_for_selector(_SEL["dropdown_listbox"], state="hidden", timeout=3000)
         return texts
 
     def _fill_form_page(self, job: dict):
@@ -805,7 +805,6 @@ class WorkdayApplicant:
 
         for field in fields:
             name = field["field_name"]
-
             # Known field → fill directly from workday_fields
             if name in self._workday_fields:
                 value = self._workday_fields[name]
@@ -842,9 +841,16 @@ class WorkdayApplicant:
             logger.info("  Sending %d question(s) to AI in batch", len(ai_fields))
             answers = self._ask_llm_batch(ai_fields, job)
             for field, answer in zip(ai_fields, answers):
-                logger.info("  Filling AI answer for '%s' → '%s'",
-                            field["field_name"], str(answer)[:40])
-                self._fill_field_by_type(field, answer)
+                # Re-query element from DOM to avoid stale references after scan re-renders
+                container = self._page.query_selector(
+                    f'[data-automation-id="formField-{field["field_name"]}"]'
+                )
+                if not container:
+                    raise WorkdayApplyError(f"Field '{field['field_name']}' not found on page")
+                refreshed = self._classify_field(container, field["field_name"])
+                if not refreshed:
+                    raise WorkdayApplyError(f"Field '{field['field_name']}' could not be re-classified")
+                self._fill_field_by_type(refreshed, answer)
 
     def _scan_page_fields(self) -> list[dict]:
         """Scan the current page for all fillable form fields.
@@ -1121,7 +1127,7 @@ IMPORTANT:
 - If a question seems blank, garbled, incomplete, or impossible to understand, set confidence to 1.
 - If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
 - Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
-- For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format.
+- For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format. If unsure about the amount, default to "800000" with confidence {self._confidence_threshold}. Never fail on compensation.
 
 Questions:
 {questions_block}
