@@ -841,16 +841,7 @@ class WorkdayApplicant:
             logger.info("  Sending %d question(s) to AI in batch", len(ai_fields))
             answers = self._ask_llm_batch(ai_fields, job)
             for field, answer in zip(ai_fields, answers):
-                # Re-query element from DOM to avoid stale references after scan re-renders
-                container = self._page.query_selector(
-                    f'[data-automation-id="formField-{field["field_name"]}"]'
-                )
-                if not container:
-                    raise WorkdayApplyError(f"Field '{field['field_name']}' not found on page")
-                refreshed = self._classify_field(container, field["field_name"])
-                if not refreshed:
-                    raise WorkdayApplyError(f"Field '{field['field_name']}' could not be re-classified")
-                self._fill_field_by_type(refreshed, answer)
+                self._fill_field_by_type(field, answer)
 
     def _scan_page_fields(self) -> list[dict]:
         """Scan the current page for all fillable form fields.
@@ -941,6 +932,19 @@ class WorkdayApplicant:
                 "options": [],
             }
 
+        # Check for checkbox
+        checkbox = container.query_selector("input[type='checkbox']")
+        if checkbox:
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "checkbox",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": checkbox,
+                "options": [],
+            }
+
         # Check for text input
         text_input = container.query_selector("input[type='text']")
         if text_input:
@@ -1001,6 +1005,12 @@ class WorkdayApplicant:
             fill_value = value[0] if isinstance(value, list) else value
             self._fill_radio(field, fill_value)
 
+        elif input_type == "checkbox":
+            fill_value = value[0] if isinstance(value, list) else value
+            if str(fill_value).lower() in ("true", "yes", "1"):
+                if field["element"].get_attribute("aria-checked") != "true":
+                    field["element"].click()
+
     @staticmethod
     def _normalize_text(text: str) -> str:
         """Strip diacriticals and lowercase for comparison."""
@@ -1013,10 +1023,7 @@ class WorkdayApplicant:
         Used for fields that show a button (e.g. "Select One") which, when clicked,
         opens a popup listbox with all available options visible at once. No typing/search.
 
-        Examples:
-            - Degree: click → listbox shows "Bachelor of Technology", "Master's", etc.
-            - Language: click → listbox shows "English", "Hindi", "Telugu", etc.
-            - Proficiency (Reading/Speaking/Writing): click → "1 - Beginner", "3 - Fluent", etc.
+        Retries up to 3 times if the selection doesn't stick (React re-renders can reset it).
 
         Args:
             field: Field descriptor with 'element' (the dropdown button) and 'field_name'.
@@ -1025,44 +1032,62 @@ class WorkdayApplicant:
                              E.g. "Fluent" matches "3 - Fluent". Default False.
         """
         btn = field["element"]
-        btn.click()
-        # Wait for dropdown popup listbox and real options to load
-        listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
-        self._page.wait_for_selector(_SEL["dropdown_real_option"], timeout=_TIMEOUT)
-        # Collect available options
-        options = listbox.query_selector_all(_SEL["dropdown_option"])
-        available = []
-        option_map = {}
-        for opt in options:
-            opt_text = opt.inner_text().strip()
-            available.append(opt_text)
-            option_map[self._normalize_text(opt_text)] = opt
-
-        # Normalize value to priority list
         candidates = value if isinstance(value, list) else [value]
 
-        # Try each candidate in priority order
-        for candidate in candidates:
-            norm_candidate = self._normalize_text(candidate)
-            # Exact match
-            if norm_candidate in option_map:
-                option_map[norm_candidate].click()
-                self._page.wait_for_selector(
-                    _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
+        for attempt in range(3):
+            btn.click()
+            # Wait for dropdown popup listbox and real options to load
+            listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
+            self._page.wait_for_selector(_SEL["dropdown_real_option"], timeout=_TIMEOUT)
+            # Collect available options
+            options = listbox.query_selector_all(_SEL["dropdown_option"])
+            available = []
+            option_map = {}
+            for opt in options:
+                opt_text = opt.inner_text().strip()
+                available.append(opt_text)
+                option_map[self._normalize_text(opt_text)] = opt
+
+            # Try each candidate in priority order
+            selected_text = None
+            for candidate in candidates:
+                norm_candidate = self._normalize_text(candidate)
+                # Exact match
+                if norm_candidate in option_map:
+                    option_map[norm_candidate].click()
+                    selected_text = candidate
+                    break
+                # Substring match
+                if substring_match:
+                    for opt_key, opt_el in option_map.items():
+                        if norm_candidate in opt_key:
+                            opt_el.click()
+                            selected_text = candidate
+                            break
+                    if selected_text:
+                        break
+
+            if not selected_text:
+                raise WorkdayApplyError(
+                    f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
                 )
+
+            self._page.wait_for_selector(
+                _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
+            )
+            time.sleep(0.5)
+
+            # Verify the selection stuck by checking button value
+            btn_value = btn.get_attribute("value") or btn.inner_text().strip()
+            if btn_value and btn_value != "Select One":
+                logger.debug("Dropdown '%s' selected '%s' on attempt %d", field["field_name"], selected_text, attempt + 1)
                 return
-            # Substring match
-            if substring_match:
-                for opt_key, opt_el in option_map.items():
-                    if norm_candidate in opt_key:
-                        opt_el.click()
-                        self._page.wait_for_selector(
-                            _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
-                        )
-                        return
+
+            logger.warning("Dropdown '%s' selection didn't stick (attempt %d/3), retrying...", field["field_name"], attempt + 1)
+            time.sleep(1)
 
         raise WorkdayApplyError(
-            f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
+            f"Dropdown '{field['field_name']}' selection failed after 3 attempts"
         )
 
 

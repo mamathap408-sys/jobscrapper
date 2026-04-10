@@ -41,3 +41,9 @@ languages:
     reading: ["Fluent", "Advanced"]
     speaking: ["Fluent", "Advanced"]
     writing: ["Fluent", "Advanced"]
+
+# Voluntary Disclosures
+gender: "Female"
+citizenshipStatus: ["Citizen (India)", "Indian Citizen", "Indian"]
+nationality: ["Indian", "India"]
+acceptTermsAndAgreements: "true"
