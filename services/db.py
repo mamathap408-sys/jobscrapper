@@ -292,7 +292,7 @@ class JobDatabase:
         """Mark a job application as successfully submitted."""
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
-            "UPDATE applied_jobs SET status = 'submitted', applied_at = ? WHERE job_id = ?",
+            "UPDATE applied_jobs SET status = 'submitted', applied_at = ?, error_message = NULL WHERE job_id = ?",
             (now, job_id),
         )
         self._conn.commit()
