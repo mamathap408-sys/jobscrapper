@@ -701,6 +701,11 @@ class WorkdayApplicant:
             try:
                 container.wait_for_selector(_SEL["selected_item"], timeout=3000)
                 logger.info("  Searchable '%s': selected with '%s'", field_name, candidate)
+                # Dismiss any lingering search popup
+                if self._page.query_selector(_SEL["dropdown_listbox"]):
+                    self._page.keyboard.press("Escape")
+                if self._page.query_selector(_SEL["dropdown_listbox"]):
+                    self._page.keyboard.press("Tab")
                 return
             except PlaywrightTimeout:
                 pass  # Enter didn't auto-select — try clicking from dropdown
@@ -1035,6 +1040,11 @@ class WorkdayApplicant:
         candidates = value if isinstance(value, list) else [value]
 
         for attempt in range(3):
+            # Dismiss any stale listbox left by a previous field
+            if self._page.query_selector(_SEL["dropdown_listbox"]):
+                self._page.keyboard.press("Escape")
+            if self._page.query_selector(_SEL["dropdown_listbox"]):
+                self._page.keyboard.press("Tab")
             btn.click()
             # Wait for dropdown popup listbox and real options to load
             listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
