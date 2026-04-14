@@ -453,9 +453,12 @@ class WorkdayApplicant:
         else:
             review_content = review_page.inner_text()
 
+        workday_answers_content = _WORKDAY_ANSWERS_PATH.read_text(encoding="utf-8")
+
         prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
             criteria=ELIGIBILITY_CRITERIA,
             answers_content=self._answers_raw,
+            workday_answers_content=workday_answers_content,
             job_title=job.get("title", ""),
             job_company=job.get("company", ""),
             job_description=job.get("job_description", ""),

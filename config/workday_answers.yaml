@@ -23,7 +23,7 @@ country: "India"
 countryPhoneCode: "+91"
 
 # My Information - Screening
-source: ["Company career website", "Other Source"]
+source: ["Company career website", "LinkedIn", "Job Board", "Other Source"]
 candidateIsPreviousWorker: "No"
 
 # My Experience - Education

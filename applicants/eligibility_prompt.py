@@ -73,6 +73,18 @@ ELIGIBILITY_PROMPT_TEMPLATE = """You are reviewing a job application before fina
 CANDIDATE PROFILE & ANSWERS (this is the source of truth for who the candidate is):
 {answers_content}
 
+WORKDAY FORM FIELD MAPPING (used to fill form fields — arrays mean ANY value in the list is acceptable):
+{workday_answers_content}
+
+IMPORTANT RULES FOR MATCHING:
+- When a field in the workday mapping has an ARRAY of values (e.g. degree: ["Bachelor of Technology", "B.Tech", "B.S."]),
+  the application may use ANY ONE of those values. All are equally valid — do NOT flag as mismatch.
+- Education school/degree/field values in the application should be matched against the workday mapping arrays, NOT the profile.
+- GPA/gradeAverage in the workday mapping is the authoritative value for education GPA.
+- Optional fields showing "No Response" are fine if the candidate has no answer for them.
+  Only flag "No Response" if the candidate explicitly has a value for that field in their answers.
+- The armed forces/veteran/military section is OPTIONAL — "No Response" is acceptable.
+
 JOB BEING APPLIED TO:
   Title: {job_title}
   Company: {job_company}
@@ -82,10 +94,10 @@ APPLICATION REVIEW PAGE CONTENT (what was actually filled in the form):
 {review_content}
 
 INSTRUCTIONS:
-- Compare the filled application against the candidate's actual profile/answers above.
+- Compare the filled application against the candidate's actual profile/answers AND workday mapping above.
 - Verify all fields match the candidate's real information (name, email, phone, address, work history, education).
 - Check that application answers are appropriate for this specific job and company.
 - If ALL criteria are satisfied, respond with exactly: {{"verdict": "eligible"}}
 - If ANY criteria is NOT satisfied, respond with: {{"verdict": "not_eligible", "reasons": ["reason 1", "reason 2", ...]}}
-- Be strict. Do not approve applications with missing required fields or inconsistencies.
+- Be strict on dates, names, and required fields. Be lenient on values that match any entry in an array.
 - Only return the JSON object, no other text."""
