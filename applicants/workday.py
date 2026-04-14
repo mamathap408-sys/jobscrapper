@@ -32,6 +32,7 @@ import yaml
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeout
 
 from services.genai_client import GenAIClient
+from applicants.eligibility_prompt import ELIGIBILITY_CRITERIA, ELIGIBILITY_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -444,6 +445,47 @@ class WorkdayApplicant:
             return "submit" in text
         return False
 
+    def _review_before_submit(self, job: dict):
+        """Send the review page content to LLM for eligibility check before submitting."""
+        review_page = self._page.query_selector('[data-automation-id="applyFlowReviewPage"]')
+        if not review_page:
+            review_content = self._page.inner_text("body")
+        else:
+            review_content = review_page.inner_text()
+
+        prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
+            criteria=ELIGIBILITY_CRITERIA,
+            answers_content=self._answers_raw,
+            job_title=job.get("title", ""),
+            job_company=job.get("company", ""),
+            job_description=job.get("job_description", ""),
+            review_content=review_content,
+        )
+
+        logger.info("Reviewing application with LLM before submit...")
+        response = self._genai.chat(prompt, system_role=_SYSTEM_ROLE)
+
+        # Parse response
+        text = response.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```\w*\n?", "", text)
+            text = re.sub(r"\n?```$", "", text)
+            text = text.strip()
+
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            raise WorkdayApplyError(f"LLM eligibility review returned unparseable response: {text[:200]}")
+
+        verdict = result.get("verdict", "").lower()
+        if verdict == "eligible":
+            logger.info("LLM eligibility check PASSED — proceeding to submit")
+            return
+        else:
+            reasons = result.get("reasons", ["Unknown reason"])
+            reasons_str = "; ".join(reasons)
+            raise WorkdayApplyError(f"LLM eligibility check FAILED: {reasons_str}")
+
     def _fill_application(self, job: dict, pdf_path: Path, resume_data: dict):
         """Walk through the Workday application form dynamically."""
 
@@ -459,6 +501,7 @@ class WorkdayApplicant:
             self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 
             if self._is_submit_page():
+                self._review_before_submit(job)
                 self._page.query_selector(_SEL["next_btn"]).click()
                 self._page.wait_for_load_state("networkidle")
                 logger.info("Application submitted")
@@ -551,28 +594,38 @@ class WorkdayApplicant:
         add_btn.click()
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
 
+    def _get_last_panel(self, section_id: str):
+        """Return the last (just-added) panel within a section."""
+        section = self._page.query_selector(f'[aria-labelledby="{section_id}-section"]')
+        if not section:
+            return None
+        panels = section.query_selector_all('[role="group"][aria-labelledby*="-panel"]')
+        return panels[-1] if panels else section
+
     def _fill_work_experience_entry(self, exp: dict):
         """Fill a single work experience entry after clicking Add."""
+        panel = self._get_last_panel("Work-Experience")
+
         # Text fields
-        self._fill_experience_field("jobTitle", exp.get("jobTitle", ""))
-        self._fill_experience_field("companyName", exp.get("companyName", ""))
+        self._fill_experience_field("jobTitle", exp.get("jobTitle", ""), scope=panel)
+        self._fill_experience_field("companyName", exp.get("companyName", ""), scope=panel)
         if exp.get("location"):
-            self._fill_experience_field("location", exp["location"])
+            self._fill_experience_field("location", exp["location"], scope=panel)
 
         # Checkbox: currently work here
         if exp.get("currentlyWorkHere"):
-            checkbox = self._page.query_selector(_SEL["exp_currently_here"])
+            checkbox = panel.query_selector(_SEL["exp_currently_here"])
             if checkbox and checkbox.get_attribute("aria-checked") != "true":
                 checkbox.click()
 
         # Date fields
-        self._fill_date_field("startDate", exp.get("startDate", ""))
+        self._fill_date_field("startDate", exp.get("startDate", ""), scope=panel)
         if not exp.get("currentlyWorkHere") and exp.get("endDate", "").lower() != "present":
-            self._fill_date_field("endDate", exp.get("endDate", ""))
+            self._fill_date_field("endDate", exp.get("endDate", ""), scope=panel)
 
         # Role description (optional)
         if exp.get("roleDescription"):
-            desc = self._page.query_selector(_SEL["exp_role_desc"])
+            desc = panel.query_selector(_SEL["exp_role_desc"])
             if desc:
                 desc.fill(exp["roleDescription"])
 
@@ -582,6 +635,8 @@ class WorkdayApplicant:
         Fields: school (searchable multiselect), degree (dropdown),
         fieldOfStudy (searchable multiselect), dates.
         """
+        panel = self._get_last_panel("Education")
+
         # School — searchable multiselect, try each name in priority list
         if edu.get("school"):
             self._select_from_searchable("school", edu["school"])
@@ -604,13 +659,13 @@ class WorkdayApplicant:
 
         # GPA
         if edu.get("gradeAverage"):
-            self._fill_experience_field("gradeAverage", edu["gradeAverage"])
+            self._fill_experience_field("gradeAverage", edu["gradeAverage"], scope=panel)
 
         # Date fields
         if edu.get("startDate"):
-            self._fill_date_field("startDate", edu["startDate"])
+            self._fill_date_field("startDate", edu["startDate"], scope=panel)
         if edu.get("endDate"):
-            self._fill_date_field("endDate", edu["endDate"])
+            self._fill_date_field("endDate", edu["endDate"], scope=panel)
 
     def _fill_language_entry(self, lang: dict):
         """Fill a single language entry after clicking Add."""
@@ -756,20 +811,20 @@ class WorkdayApplicant:
             f"No matching option for searchable field '{field_name}'. Tried: {candidates}"
         )
 
-    def _fill_experience_field(self, field_name: str, value: str):
-        """Fill a text field by its formField automation ID on the experience page."""
-        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+    def _fill_experience_field(self, field_name: str, value: str, scope):
+        """Fill a text field by its formField automation ID within a scoped panel."""
+        container = scope.query_selector(f'[data-automation-id="formField-{field_name}"]')
         if not container:
             return
         text_input = container.query_selector("input[type='text']")
         if text_input:
             text_input.fill(value)
 
-    def _fill_date_field(self, field_name: str, value: str):
-        """Fill a date field (MM/YYYY format) by its formField automation ID."""
+    def _fill_date_field(self, field_name: str, value: str, scope):
+        """Fill a date field (MM/YYYY format) by its formField automation ID within a scoped panel."""
         if not value or value.lower() == "present":
             return
-        container = self._page.query_selector(f'[data-automation-id="formField-{field_name}"]')
+        container = scope.query_selector(f'[data-automation-id="formField-{field_name}"]')
         if not container:
             return
         parts = value.split("/")
