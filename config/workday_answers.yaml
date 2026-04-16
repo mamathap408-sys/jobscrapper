@@ -38,9 +38,12 @@ education:
 languages:
   - language: "English"
     native: false
-    reading: ["Fluent", "Advanced"]
-    speaking: ["Fluent", "Advanced"]
-    writing: ["Fluent", "Advanced"]
+    read: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
+    reading: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
+    speak: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
+    speaking: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
+    write: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
+    writing: ["3 - Fluent", "Fluent", "3 - High", "Advanced", "High"]
 
 # Voluntary Disclosures
 gender: "Female"

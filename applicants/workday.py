@@ -137,7 +137,6 @@ _SYSTEM_ROLE = (
 )
 
 
-_SESSIONS_DIR = Path(__file__).parent.parent / "data" / "workday_sessions"
 _CREDS_PATH = Path(__file__).parent.parent / "config" / "career_sites_credentials.yaml"
 _WORKDAY_ANSWERS_PATH = Path(__file__).parent.parent / "config" / "workday_answers.yaml"
 
@@ -186,6 +185,7 @@ class WorkdayApplicant:
         if "education" not in self._workday_fields:
             raise WorkdayApplyError("'education' section missing from workday_answers.yaml")
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
+        self._test_mode = self._apply_cfg.get("test_mode", False)
         self._apply_email = self._personal.get("email", "")
 
         self._pw = None
@@ -213,29 +213,11 @@ class WorkdayApplicant:
         self._genai = GenAIClient(self._genai_cfg)
         logger.info("Browser launched (headless=%s)", headless)
 
-    def _get_session_path(self, tenant: str) -> Path:
-        """Return the session file path for a tenant."""
-        return _SESSIONS_DIR / f"{tenant}.json"
-
     def _load_context(self, tenant: str):
-        """Create a browser context, loading saved session if available."""
-        session_path = self._get_session_path(tenant)
-        if session_path.exists():
-            logger.info("Loading saved session for tenant: %s", tenant)
-            self._context = self._browser.new_context(storage_state=str(session_path))
-        else:
-            self._context = self._browser.new_context()
+        """Create a fresh browser context."""
+        self._context = self._browser.new_context()
         self._page = self._context.new_page()
         self._current_tenant = tenant
-
-    def _save_session(self):
-        """Save the current browser context session to disk."""
-        if not self._current_tenant or not self._context:
-            return
-        _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-        session_path = self._get_session_path(self._current_tenant)
-        self._context.storage_state(path=str(session_path))
-        logger.info("Session saved for tenant: %s", self._current_tenant)
 
     def close(self):
         """Shut down browser and GenAI client."""
@@ -304,7 +286,6 @@ class WorkdayApplicant:
 
         logger.info("Applying to: %s at %s (%s)", job["title"], job["company"], job_url)
 
-        # Load context with saved session for this tenant
         if self._current_tenant != tenant:
             if self._context:
                 self._context.close()
@@ -347,7 +328,6 @@ class WorkdayApplicant:
             input("Press Enter after you have signed in manually...")
 
         self._page.reload(wait_until="networkidle")
-        self._save_session()
 
     # ── Step 1: Click Apply ────────────────────────────────────
 
@@ -505,6 +485,8 @@ class WorkdayApplicant:
 
             if self._is_submit_page():
                 self._review_before_submit(job)
+                if self._test_mode:
+                    raise WorkdayApplyError("TEST MODE — stopping before final submit")
                 self._page.query_selector(_SEL["next_btn"]).click()
                 self._page.wait_for_load_state("networkidle")
                 logger.info("Application submitted")
@@ -562,19 +544,29 @@ class WorkdayApplicant:
             self._fill_work_experience_entry(exp)
 
         # Fill education (from workday_answers.yaml)
-        edu = self._workday_fields["education"]
-        logger.info("  Adding education: %s from %s", edu.get("degree", ""), edu.get("school", ""))
-        self._click_section_add("Education")
-        self._page.wait_for_selector(_SEL["exp_school"], timeout=_TIMEOUT)
-        self._fill_education_entry(edu)
+        edu_section = self._page.query_selector('[aria-labelledby="Education-section"]')
+        if edu_section:
+            edu = self._workday_fields.get("education", {})
+            logger.info("  Adding education entry")
+            self._click_section_add("Education")
+            time.sleep(1)
+            panel = self._get_last_panel("Education")
+            self._fill_section_panel(panel, edu)
+        else:
+            logger.info("  No Education section on this portal — skipping")
 
         # Fill languages (from workday_answers.yaml)
-        languages = self._workday_fields.get("languages", [])
-        for i, lang in enumerate(languages):
-            logger.info("  Adding language %d: %s", i + 1, lang.get("language", ""))
-            self._click_section_add("Languages")
-            self._page.wait_for_selector(_SEL["exp_language"], timeout=_TIMEOUT)
-            self._fill_language_entry(lang)
+        lang_section = self._page.query_selector('[aria-labelledby="Languages-section"]')
+        if lang_section:
+            languages = self._workday_fields.get("languages", [])
+            for i, lang in enumerate(languages):
+                logger.info("  Adding language %d: %s", i + 1, lang.get("language", ""))
+                self._click_section_add("Languages")
+                time.sleep(1)
+                panel = self._get_last_panel("Languages")
+                self._fill_section_panel(panel, lang)
+        else:
+            logger.info("  No Languages section on this portal — skipping")
 
         # Verify skills and resume are populated (from autofill)
         skills_container = self._page.query_selector(_SEL["exp_skills"])
@@ -604,6 +596,37 @@ class WorkdayApplicant:
             return None
         panels = section.query_selector_all('[role="group"][aria-labelledby*="-panel"]')
         return panels[-1] if panels else section
+
+    def _fill_section_panel(self, panel, answers: dict):
+        """Dynamically scan fields in a panel and fill from answers dict."""
+        fields = self._scan_page_fields(scope=panel)
+        logger.info("    Panel has %d fillable field(s)", len(fields))
+
+        for field in fields:
+            name = field["field_name"]
+            value = self._resolve_panel_value(name, field["label"], answers)
+            if value is not None:
+                logger.info("    Filling '%s' (%s) → '%s'", name, field["label"], str(value)[:30])
+                self._fill_field_by_type(field, value)
+            elif field["required"]:
+                logger.warning("    No answer for required field '%s' (%s)", name, field["label"])
+            else:
+                logger.debug("    Skipping optional: '%s'", name)
+
+    def _resolve_panel_value(self, field_name: str, label: str, answers: dict):
+        """Find a value for a field by name or label (exact match only)."""
+        # Direct match by field_name
+        if field_name in answers:
+            return answers[field_name]
+        if field_name in self._workday_fields:
+            return self._workday_fields[field_name]
+
+        # Exact label match against answers keys
+        label_lower = label.lower().strip()
+        if label_lower in answers:
+            return answers[label_lower]
+
+        return None
 
     def _fill_work_experience_entry(self, exp: dict):
         """Fill a single work experience entry after clicking Add."""
@@ -861,7 +884,7 @@ class WorkdayApplicant:
 
     def _fill_form_page(self, job: dict):
         """Detect and fill all form fields on the current page."""
-        fields = self._scan_page_fields()
+        fields = self._scan_page_fields(scope=self._page)
         logger.info("Page has %d fillable field(s)", len(fields))
 
         ai_fields = []  # Fields that need LLM answers
@@ -906,8 +929,8 @@ class WorkdayApplicant:
             for field, answer in zip(ai_fields, answers):
                 self._fill_field_by_type(field, answer)
 
-    def _scan_page_fields(self) -> list[dict]:
-        """Scan the current page for all fillable form fields.
+    def _scan_page_fields(self, scope) -> list[dict]:
+        """Scan for all fillable form fields within scope.
 
         Workday wraps each field in a div with data-automation-id="formField-{fieldName}".
         Inside, the actual input can be:
@@ -917,11 +940,14 @@ class WorkdayApplicant:
           - <input type="radio"> (radio groups)
           - div[data-automation-id="multiSelectContainer"] (multiselects)
 
+        Args:
+            scope: Element to search within (panel, section, or self._page).
+
         Returns list of field descriptors:
             {field_name, label, input_type, required, container, element, options}
         """
         fields = []
-        containers = self._page.query_selector_all('[data-automation-id^="formField-"]')
+        containers = scope.query_selector_all('[data-automation-id^="formField-"]')
 
         for container in containers:
             aid = container.get_attribute("data-automation-id") or ""

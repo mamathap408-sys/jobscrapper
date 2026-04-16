@@ -138,6 +138,7 @@ schedule:
 # Auto-apply settings (used by apply.py)
 apply:
   headless: false                    # true = invisible browser, false = visible (default)
+  test_mode: true                    # true = stop before final submit (dry run)
   apply_threshold: 7                 # only auto-apply to jobs >= this score
   answer_confidence_threshold: 7     # LLM confidence floor (1-10); below = skip job
   delay_between_jobs_seconds: 10     # polite delay between applications
