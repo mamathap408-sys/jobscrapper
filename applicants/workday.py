@@ -1192,11 +1192,6 @@ class WorkdayApplicant:
                     logger.warning("  Skipping optional field '%s': %s", name, e)
                 continue
 
-            # Skip optional fields we don't have data for
-            if not field["required"]:
-                logger.debug("  Skipping optional: '%s'", name)
-                continue
-
             # Guard: fail if label is blank or too short (bad parse)
             if not field["label"] or len(field["label"].strip()) < 5:
                 raise WorkdayApplyError(
@@ -1216,6 +1211,9 @@ class WorkdayApplicant:
             logger.info("  Sending %d question(s) to AI in batch", len(ai_fields))
             answers = self._ask_llm_batch(ai_fields, job)
             for field, answer in zip(ai_fields, answers):
+                if answer == "SKIP":
+                    logger.info("  Skipping optional field '%s' (LLM said SKIP)", field["field_name"])
+                    continue
                 self._fill_field_by_type(field, answer)
 
     def _scan_page_fields(self, scope) -> list[dict]:
@@ -1509,9 +1507,11 @@ class WorkdayApplicant:
                 options_text = ""
                 if field.get("options"):
                     options_text = f"  Options: {json.dumps(field['options'])}"
+                required_text = "Required" if field["required"] else "Optional"
                 questions_block += (
                     f"\n{idx}. Question: \"{field['label']}\"\n"
                     f"   Input type: {field['input_type']}\n"
+                    f"   {required_text}\n"
                     f"{options_text}\n"
                 )
 
@@ -1536,6 +1536,7 @@ IMPORTANT:
 - If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
 - Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
 - For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format. If unsure about the amount, default to "800000" with confidence {self._confidence_threshold}. Never fail on compensation.
+- For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
 
 Questions:
 {questions_block}

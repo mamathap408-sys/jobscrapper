@@ -26,6 +26,11 @@ countryPhoneCode: "+91"
 source: ["Company career website", "LinkedIn", "Job Board", "Other Source"]
 candidateIsPreviousWorker: "No"
 
+# Current Compensation
+currentCTC: "6 LPA"
+baseSalary: "5 LPA"
+variablePay: "1 LPA"
+
 # My Experience - Education
 education:
   school: ["xxxx"]

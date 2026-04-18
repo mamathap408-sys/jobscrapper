@@ -39,7 +39,6 @@ You will receive a base LaTeX resume and a job description. Make MINIMAL, surgic
 3. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
 4. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
 5. **Education & Additional**: Copy EXACTLY as-is. Zero changes.
-6. **Section order**: If the target role clearly matches the candidate's previous experience, move **Experience** ahead of **Technical Skills** and **Projects** so the order is: Experience, Technical Skills, Projects. Otherwise keep the original section order.
 
 ## Critical constraints
 - Keep changes minimal and natural. If the base resume already matches well, return it nearly unchanged.
@@ -58,6 +57,31 @@ You will receive a base LaTeX resume and a job description. Make MINIMAL, surgic
 
 ## Job Description:
 {job_description}
+"""
+
+_EXPERIENCE_BOOST_PROMPT = """
+
+## Experience Enhancement (apply ONLY if the candidate's Amazon experience aligns with the target JD)
+
+If the Amazon "Senior Selling Partner Support Associate" experience section is relevant to this job:
+
+1. **Remove** the "SnipURL" project entirely (the Java/Spring Boot URL shortener project).
+2. **Add 2-3 bullet points** to the Amazon Experience section. Pick the most JD-relevant items from this list:
+
+- Resolved 50+ daily seller escalations via phone and email, maintaining 95%+ first-contact resolution rate
+- Identified and triaged systemic defects affecting seller workflows, driving process improvements that reduced repeat contacts by 20%
+- Liaised with Merchant Investigations, Payments, and Customer Service teams to resolve cross-functional seller issues
+- Mentored and trained new associates on best practices for seller support, quality standards, and SOPs
+- Monitored SLA adherence and performance metrics (quality, productivity, handle time) to exceed team targets
+- Developed internal documentation and knowledge-base articles to streamline issue resolution
+- Managed high-volume inbound/outbound seller communications ensuring compliance with Amazon policies
+- Contributed to workflow and capacity planning during peak volume periods
+- Acted as point of escalation for complex seller account and transaction issues
+- Drove seller satisfaction improvements through proactive outreach and chronic issue resolution
+
+3. **Reorder sections**: Move the Experience section BEFORE Technical Skills and Projects, so the order becomes: Summary → Experience → Technical Skills → Projects → Education/Achievements.
+
+If the Amazon experience is NOT relevant to the JD, ignore this section entirely and keep the resume as-is (including SnipURL and original section order).
 """
 
 
@@ -202,6 +226,7 @@ class ResumeBuilder:
             base_resume=self._base_resume,
             job_description=job_description,
         )
+        prompt += _EXPERIENCE_BOOST_PROMPT
 
         try:
             tailored_tex = self._client.chat(prompt)

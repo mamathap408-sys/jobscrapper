@@ -65,6 +65,10 @@ qa:
   # Salary — LLM decides based on role/company from job description
   # Range: 6-12 LPA. For Example:- Software roles at good companies: 10-12 LPA. Associate roles: 6-8 LPA.
   "Expected compensation": "6-12 LPA INR"
+  "current ctc": "6 LPA"
+  "current salary": "6 LPA"
+  "base salary": "5 LPA"
+  "variable pay": "1 LPA"
 
   # Previous employment
   "have you previously worked at this company": "No"
