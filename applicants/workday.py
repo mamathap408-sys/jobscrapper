@@ -31,7 +31,7 @@ import httpx
 import yaml
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeout
 
-from services.genai_client import GenAIClient
+from services.genai_client import GenAIClient, ChatSession
 from applicants.eligibility_prompt import ELIGIBILITY_CRITERIA, ELIGIBILITY_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -496,7 +496,7 @@ class WorkdayApplicant:
             if self._page.query_selector(_SEL["info_page"]):
                 self._fill_form_page(job)
             elif self._page.query_selector(_SEL["exp_page"]):
-                self._fill_experience_page(resume_data)
+                self._fill_experience_page(resume_data, job, pdf_path)
             else:
                 self._fill_form_page(job)
             self._click_next()
@@ -521,7 +521,7 @@ class WorkdayApplicant:
             delete_btn.click()
             self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
 
-    def _fill_experience_page(self, resume_data: dict):
+    def _fill_experience_page(self, resume_data: dict, job: dict, pdf_path: Path = None):
         """Fill the My Experience page.
 
         Work experience comes from resume_data (dynamic per job).
@@ -568,15 +568,304 @@ class WorkdayApplicant:
         else:
             logger.info("  No Languages section on this portal — skipping")
 
-        # Verify skills and resume are populated (from autofill)
+        # Skills: always review with LLM (remove irrelevant, add missing)
         skills_container = self._page.query_selector(_SEL["exp_skills"])
         if skills_container:
-            selected_skills = skills_container.query_selector(_SEL["selected_item"])
-            if not selected_skills:
-                raise WorkdayApplyError("Skills section is empty — autofill did not populate skills")
+            self._fill_skills_with_llm(skills_container, job, pdf_path)
         resume_uploaded = self._page.query_selector(_SEL["resume_uploaded"])
         if not resume_uploaded:
             raise WorkdayApplyError("Resume not found on experience page — upload may have failed")
+
+    # ── Skills Filling (LLM + Workday API) ──────────────────────
+
+    _SKILLS_SYSTEM_ROLE = (
+        "You are a skill-matching assistant for job applications. "
+        "You help curate the Skills section by removing irrelevant skills and adding relevant ones. "
+        "Always return ONLY valid JSON. No markdown fences, no explanation."
+    )
+
+    def _fill_skills_with_llm(self, container, job: dict, pdf_path: Path = None):
+        """Review and curate skills using LLM + Workday skills API.
+
+        Always runs — reads existing skills, asks LLM what to remove/add,
+        then verifies additions against Workday's API with back-and-forth retries.
+        """
+        skills_min = self._apply_cfg.get("skills_min", 8)
+        skills_max = self._apply_cfg.get("skills_max", 20)
+        max_retries = self._apply_cfg.get("skills_retry_count", 3)
+
+        # Read currently selected skills from the UI
+        existing_skills = self._get_selected_skills(container)
+        logger.info("  Skills: %d currently selected: %s", len(existing_skills), existing_skills)
+
+        # Read resume tex for context (no bias from config skills list)
+        resume_content = ""
+        if pdf_path:
+            tex_path = pdf_path.with_suffix(".tex")
+            if tex_path.exists():
+                resume_content = tex_path.read_text(encoding="utf-8")
+
+        session = ChatSession(self._genai, system_role=self._SKILLS_SYSTEM_ROLE)
+
+        initial_prompt = (
+            f"You are managing the Skills section of a job application. "
+            f"Review the current skills and decide what changes are needed.\n\n"
+            f"Job Title: {job.get('title', '')}\n"
+            f"Company: {job.get('company', '')}\n"
+            f"Job Description: {job.get('job_description', '')}\n\n"
+            f"Candidate's Resume:\n{resume_content}\n\n"
+            f"Currently Selected Skills in Application: {existing_skills}\n\n"
+            f"Target: {skills_min} to {skills_max} relevant skills for this specific job.\n\n"
+            f"Instructions:\n"
+            f"- REMOVE skills that are irrelevant to this job (e.g. 'Protein A' for a software role)\n"
+            f"- ADD skills that are relevant and the candidate actually has based on the resume\n"
+            f"- Use exact, standard skill names (1-3 words, e.g. 'Java', 'Python', 'SQL', 'Docker')\n"
+            f"- Prioritize skills mentioned in the job description\n"
+            f"- Keep skills that are already selected AND relevant\n\n"
+            f"Return ONLY a JSON object:\n"
+            f'{{"remove": ["Skill to uncheck", ...], "add": ["Skill to add", ...]}}\n\n'
+            f"If no changes needed, return: {{\"remove\": [], \"add\": []}}"
+        )
+
+        response = session.send(initial_prompt)
+        changes = self._parse_skills_changes(response)
+        to_remove = changes.get("remove", [])
+        to_add = changes.get("add", [])
+        logger.info("  LLM says remove %d, add %d", len(to_remove), len(to_add))
+
+        # Remove irrelevant skills
+        for skill in to_remove:
+            self._uncheck_skill_in_ui(container, skill)
+
+        # Add skills — verify against Workday API first
+        added = []
+        not_found_with_options = {}  # {skill: [valid_options_from_api]}
+
+        for skill in to_add:
+            if len(existing_skills) - len(to_remove) + len(added) >= skills_max:
+                break
+            match, valid_options = self._search_skill_api(skill)
+            if match:
+                self._check_skill_in_ui(container, match)
+                added.append(match)
+            else:
+                not_found_with_options[skill] = valid_options
+
+        # Back-and-forth: ask LLM for alternatives with valid options from API
+        retry = 0
+        current_count = len(existing_skills) - len(to_remove) + len(added)
+        while not_found_with_options and retry < max_retries and current_count < skills_min:
+            retry += 1
+            logger.info("  Skills retry %d/%d: %d total, %d not found",
+                        retry, max_retries, current_count, len(not_found_with_options))
+
+            # Build retry prompt with valid options for each failed skill
+            options_text = ""
+            for skill, options in not_found_with_options.items():
+                options_text += f"  '{skill}' → not found. Valid options returned: {options[:10]}\n"
+
+            retry_prompt = (
+                f"These skills were NOT found as exact matches in Workday's database:\n"
+                f"{options_text}\n"
+                f"Currently have {current_count} skills, need at least {skills_min}.\n"
+                f"Pick from the valid options listed above, or suggest {skills_max - current_count} "
+                f"other standard skill names.\n"
+                f"Return ONLY a JSON array of skill names to try."
+            )
+            response = session.send(retry_prompt)
+            alt_skills = self._parse_skills_json(response)
+            logger.info("  LLM alternatives: %s", alt_skills)
+            not_found_with_options = {}
+
+            for skill in alt_skills:
+                if current_count >= skills_max:
+                    break
+                if skill.lower() in [a.lower() for a in added]:
+                    continue
+                match, valid_options = self._search_skill_api(skill)
+                if match:
+                    if match.lower() not in [a.lower() for a in added]:
+                        self._check_skill_in_ui(container, match)
+                        added.append(match)
+                        current_count += 1
+                else:
+                    not_found_with_options[skill] = valid_options
+
+        final_count = len(existing_skills) - len(to_remove) + len(added)
+        if final_count < skills_min:
+            logger.warning("  Skills: only %d (minimum: %d)", final_count, skills_min)
+        logger.info("  Skills done: removed %d, added %d — total: %d",
+                    len(to_remove), len(added), final_count)
+
+    def _get_selected_skills(self, container) -> list[str]:
+        """Read currently selected skill names from the UI."""
+        pills = container.query_selector_all(_SEL["selected_item"])
+        skills = []
+        for pill in pills:
+            # Selected items typically show the skill name as text
+            text = pill.inner_text().strip()
+            if text:
+                skills.append(text)
+        return skills
+
+    def _parse_skills_changes(self, response: str) -> dict:
+        """Parse {remove: [], add: []} JSON from LLM response."""
+        import json as _json
+        text = response.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        try:
+            result = _json.loads(text)
+            if isinstance(result, dict) and "remove" in result and "add" in result:
+                return result
+        except _json.JSONDecodeError:
+            # Try to find JSON object in response
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1:
+                try:
+                    result = _json.loads(text[start:end + 1])
+                    if isinstance(result, dict):
+                        return result
+                except _json.JSONDecodeError:
+                    pass
+        logger.warning("  Could not parse skills changes JSON: %s", text[:100])
+        return {"remove": [], "add": []}
+
+    def _parse_skills_json(self, response: str) -> list[str]:
+        """Parse a JSON array of skill names from LLM response."""
+        import json as _json
+        text = response.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        try:
+            skills = _json.loads(text)
+            if isinstance(skills, list):
+                return [s for s in skills if isinstance(s, str)]
+        except _json.JSONDecodeError:
+            # Try to find array in response
+            start = text.find("[")
+            end = text.rfind("]")
+            if start != -1 and end != -1:
+                try:
+                    skills = _json.loads(text[start:end + 1])
+                    return [s for s in skills if isinstance(s, str)]
+                except _json.JSONDecodeError:
+                    pass
+        logger.warning("  Could not parse skills JSON from LLM: %s", text[:100])
+        return []
+
+    def _search_skill_api(self, skill_name: str) -> tuple[str | None, list[str]]:
+        """Search Workday's skills API for an exact match.
+
+        Returns:
+            (exact_match_or_None, valid_options_list)
+            valid_options excludes crowdsourced garbage.
+        """
+        base_url = self._get_cxs_base_url()
+        url = f"{base_url}/skillsearch"
+
+        try:
+            resp = self._http.get(url, params={"search": skill_name.lower()})
+            if resp.status_code != 200:
+                logger.debug("  Skill API returned %d for '%s'", resp.status_code, skill_name)
+                return None, []
+
+            results = resp.json()
+            if not results:
+                return None, []
+
+            # If only 1 result returned, accept it directly
+            if len(results) == 1:
+                return skill_name, []
+
+            # Multiple results: find exact match, collect valid options
+            valid_options = []
+            exact_match = None
+
+            for item in results:
+                desc = item.get("descriptor", "")
+                item_id = item.get("id", "")
+                # Skip crowdsourced garbage: id == descriptor and starts lowercase
+                if item_id == desc and desc[0:1].islower():
+                    continue
+                valid_options.append(desc)
+                if desc.lower() == skill_name.lower() and exact_match is None:
+                    exact_match = desc
+
+            return exact_match, valid_options
+        except Exception as e:
+            logger.debug("  Skill API error for '%s': %s", skill_name, e)
+        return None, []
+
+    def _check_skill_in_ui(self, container, skill_name: str):
+        """Type skill in the search, press Enter to search, find and check its checkbox."""
+        multiselect = container.query_selector(_SEL["multiselect"])
+        if not multiselect:
+            return
+        search_input = multiselect.query_selector("input")
+        if not search_input:
+            return
+
+        search_input.click(force=True)
+        search_input.fill("")
+        search_input.type(skill_name)
+        search_input.press("Enter")
+        container.wait_for_selector(_SEL["menu_item"], timeout=5000)
+
+        # Find matching menu item scoped to this container
+        menu_items = container.query_selector_all(_SEL["menu_item"])
+        for item in menu_items:
+            label_el = item.query_selector(_SEL["prompt_option"])
+            if label_el:
+                label = label_el.get_attribute("data-automation-label") or ""
+                if label.lower() == skill_name.lower():
+                    checkbox = item.query_selector('input[type="checkbox"]')
+                    if checkbox and checkbox.get_attribute("aria-checked") != "true":
+                        checkbox.click()
+                        logger.info("    Checked skill: '%s'", skill_name)
+                    break
+
+        search_input.fill("")
+        time.sleep(0.3)
+
+    def _uncheck_skill_in_ui(self, container, skill_name: str):
+        """Type skill in the search, press Enter to search, find and uncheck its checkbox."""
+        multiselect = container.query_selector(_SEL["multiselect"])
+        if not multiselect:
+            return
+        search_input = multiselect.query_selector("input")
+        if not search_input:
+            return
+
+        search_input.click(force=True)
+        search_input.fill("")
+        search_input.type(skill_name)
+        search_input.press("Enter")
+        container.wait_for_selector(_SEL["menu_item"], timeout=5000)
+
+        menu_items = container.query_selector_all(_SEL["menu_item"])
+        for item in menu_items:
+            label_el = item.query_selector(_SEL["prompt_option"])
+            if label_el:
+                label = label_el.get_attribute("data-automation-label") or ""
+                if label.lower() == skill_name.lower():
+                    checkbox = item.query_selector('input[type="checkbox"]')
+                    if checkbox and checkbox.get_attribute("aria-checked") == "true":
+                        checkbox.click()
+                        logger.info("    Unchecked skill: '%s'", skill_name)
+                    break
+
+        search_input.fill("")
+        time.sleep(0.3)
+
+    def _get_cxs_base_url(self) -> str:
+        """Get the CXS API base URL from the current browser URL."""
+        parsed = urlparse(self._page.url)
+        tenant = self._current_tenant
+        return f"{parsed.scheme}://{parsed.hostname}/wday/cxs/{tenant}"
+
+    # ── Section Helpers ──────────────────────────────────────────
 
     def _click_section_add(self, section_id: str):
         """Click the 'Add' button within a section group."""

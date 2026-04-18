@@ -137,6 +137,100 @@ class GenAIClient:
             return full_resp["content"][0]["text"]
         return full_resp["choices"][0]["message"]["content"]
 
+    def chat_with_history(self, query: list[dict]) -> str:
+        """Send a multi-turn conversation to the GenAI gateway.
+
+        Same retry/auth logic as chat(), but takes a pre-built message list
+        for multi-turn conversations.
+
+        Args:
+            query: Full message list [{role, content}, ...] including system message.
+
+        Returns:
+            The LLM's raw text response.
+        """
+        delay = 1.0
+        attempt = 0
+
+        while attempt < self._max_retries:
+            attempt += 1
+            try:
+                token = self._ensure_token()
+
+                payload = {
+                    "model_name": self._model,
+                    "user_context": {
+                        "application_name": self._app_name,
+                        "end_user": self._username,
+                    },
+                    "query_type": "query",
+                    "query": query,
+                    "customized_params": {"temperature": 0.2},
+                }
+
+                resp = self._client.post(
+                    self._chat_url,
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {token}",
+                    },
+                )
+                resp.raise_for_status()
+                return self._parse_response(resp.json())
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    logger.info("GenAI token expired, re-authenticating...")
+                    self._token = None
+                if attempt < self._max_retries:
+                    logger.warning(
+                        "GenAI request attempt %d/%d failed: %s — retrying in %.1fs",
+                        attempt, self._max_retries, e, delay,
+                    )
+                    time.sleep(delay)
+                    delay *= 1.5
+                else:
+                    raise RuntimeError(
+                        f"GenAI request failed after {self._max_retries} attempts: {e}"
+                    ) from e
+            except Exception as e:
+                if attempt < self._max_retries:
+                    logger.warning(
+                        "GenAI request attempt %d/%d failed: %s — retrying in %.1fs",
+                        attempt, self._max_retries, e, delay,
+                    )
+                    time.sleep(delay)
+                    delay *= 1.5
+                else:
+                    raise RuntimeError(
+                        f"GenAI request failed after {self._max_retries} attempts: {e}"
+                    ) from e
+
     def close(self):
         """Close the httpx client."""
         self._client.close()
+
+
+class ChatSession:
+    """Multi-turn conversation with the GenAI gateway.
+
+    Maintains message history so the LLM has context from previous turns.
+    """
+
+    def __init__(self, client: GenAIClient, system_role: str):
+        self._client = client
+        self._system_role = system_role
+        self._history: list[dict] = []
+
+    def send(self, message: str) -> str:
+        """Send a message and get a response, maintaining conversation history."""
+        self._history.append({"role": "user", "content": message})
+        query = [{"role": "system", "content": self._system_role}]
+        query.extend(self._history)
+        response_text = self._client.chat_with_history(query)
+        self._history.append({"role": "assistant", "content": response_text})
+        return response_text
+
+    def reset(self):
+        """Clear conversation history."""
+        self._history = []
