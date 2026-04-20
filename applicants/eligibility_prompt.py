@@ -53,7 +53,7 @@ ELIGIBILITY CRITERIA — The application MUST satisfy ALL of the following to be
 
 9. MISSING ANSWERS (compare application vs candidate answers)
    - If the candidate's answers/profile has data for a field but the application shows "No Response" or is blank, flag it
-   - Specifically check: if answers.yaml has a value for a field that appears in the application but wasn't filled, that's a failure
+   - Specifically check: if workday_answers.yaml has a value for a field that appears in the application but wasn't filled, that's a failure
    - Examples:
      * If candidate has phone number in their profile but Phone section shows "No Response", flag it
      * If candidate has gender in their profile but Gender field shows "No Response", flag it
@@ -64,6 +64,27 @@ ELIGIBILITY CRITERIA — The application MUST satisfy ALL of the following to be
    - Salary is unreasonably low (below 100000 for India roles) or absurdly high
    - Visa sponsorship answer contradicts citizenship (e.g., Indian citizen applying in India should not need sponsorship)
    - Any answer contradicts the candidate's profile (wrong name, wrong company, etc.)
+
+11. EXCLUSION RISK FLAGS (auto-reject if any found)
+   - Any screening question where the answer is "No", "Not Specified", "No Response", blank, or
+     negative AND the question is about a requirement that would likely disqualify the candidate.
+   - Common exclusion-risk questions to watch for:
+     * Willingness to work in a specific location (e.g. "Are you willing to work in Bangalore/Hyderabad/etc?")
+     * Work authorization / work permit in the job's country (e.g. "Do you have a valid work permit in India?")
+     * Willingness to relocate
+     * Right to work / visa status questions
+     * Background check consent
+     * Non-compete or contractual obligation questions
+     * Drug test consent
+     * Ability to commute to the office location
+     * Shift/schedule availability (e.g. "Can you work night shifts?")
+   - If ANY of these types of questions has an answer that is blank, "Not Specified", "No Response",
+     "No", or any negative/non-committal response, flag it as not_eligible.
+   - The reasoning is: even if the field is optional or not marked required, a negative or missing
+     answer to these types of questions will likely lead to automatic rejection by the recruiter/ATS.
+   - Exception: If the candidate's workday_answers.yaml explicitly provides "No" for a question (meaning
+     the candidate genuinely cannot meet that requirement), still flag it — the application should
+     not be submitted if the candidate will be auto-excluded.
 """
 
 ELIGIBILITY_PROMPT_TEMPLATE = """You are reviewing a job application before final submission. Your job is to determine if this application is ELIGIBLE to be submitted.

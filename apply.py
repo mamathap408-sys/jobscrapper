@@ -128,7 +128,7 @@ def main():
     threshold = apply_cfg.get("apply_threshold", 7)
     delay = apply_cfg.get("delay_between_jobs_seconds", 10)
     blacklist = [c.lower() for c in apply_cfg.get("blacklist_companies", [])]
-    apply_email = answers.get("personal", {}).get("email", "")
+    apply_email = answers.get("workday_account", {}).get("email", "")
     resume_email = apply_cfg.get("resume_email", "")
     tex_bin = config.get("resume_builder", {}).get("tex_bin", "")
 

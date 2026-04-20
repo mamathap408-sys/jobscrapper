@@ -32,7 +32,7 @@ from scrapers.base import JobProfile
 # Paths are relative to this file's directory (the project root)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 URLS_PATH = Path(__file__).parent / "urls.yaml"
-ANSWERS_PATH = Path(__file__).parent / "answers.yaml"
+ANSWERS_PATH = Path(__file__).parent / "workday_answers.yaml"
 
 # Regex to match ${VAR_NAME} patterns in config values
 _ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)}")
@@ -96,7 +96,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 
 
 def load_answers(path: Path = ANSWERS_PATH) -> dict:
-    """Load answers.yaml (personal data + Q&A for auto-apply) and resolve env vars.
+    """Load workday_answers.yaml (personal data + Q&A for auto-apply) and resolve env vars.
 
     Returns:
         dict: The fully resolved answers dictionary.

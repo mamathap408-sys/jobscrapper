@@ -12,7 +12,7 @@ Flow per job:
 
 Form filling uses a generic page scanner that:
   - Detects all form fields (text, select, radio, textarea)
-  - Fills known fields from workday_fields in answers.yaml (keyed by data-automation-id)
+  - Fills known fields from workday_fields in workday_answers.yaml (keyed by data-automation-id)
   - Skips optional fields not in the mapping
   - Falls back to LLM for unknown required fields
 
@@ -171,22 +171,20 @@ class WorkdayApplicant:
 
     def __init__(self, config: dict, answers: dict, answers_raw: str = ""):
         if not answers_raw:
-            raise WorkdayApplyError("answers_raw is required — raw answers.yaml content must be provided")
+            raise WorkdayApplyError("answers_raw is required — raw workday_answers.yaml content must be provided")
         self._apply_cfg = config.get("apply", {})
         self._genai_cfg = config.get("genai", {})
         self._profiles = config.get("profiles", [])
         self._answers = answers
         self._answers_raw = answers_raw
-        self._personal = answers.get("personal", {})
         self._work_exp = answers.get("work_experience", [])
-        self._education = answers.get("education", [])
         self._credentials = _load_credentials()
         self._workday_fields = _load_workday_answers()
         if "education" not in self._workday_fields:
             raise WorkdayApplyError("'education' section missing from workday_answers.yaml")
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
         self._test_mode = self._apply_cfg.get("test_mode", False)
-        self._apply_email = self._personal.get("email", "")
+        self._apply_email = answers.get("workday_account", {}).get("email", "")
 
         self._pw = None
         self._browser = None
@@ -1393,6 +1391,19 @@ class WorkdayApplicant:
                 "options": [],
             }
 
+        # Check for date year spinbutton (e.g. firstYearAttended, lastYearAttended)
+        year_input = container.query_selector('[data-automation-id="dateSectionYear-input"]')
+        if year_input:
+            return {
+                "field_name": field_name,
+                "label": self._get_container_label(container),
+                "input_type": "text",
+                "required": self._container_is_required(container),
+                "container": container,
+                "element": year_input,
+                "options": [],
+            }
+
         return None
 
     def _get_container_label(self, container) -> str:
@@ -1442,9 +1453,14 @@ class WorkdayApplicant:
 
         elif input_type == "checkbox":
             fill_value = value[0] if isinstance(value, list) else value
-            if str(fill_value).lower() in ("true", "yes", "1"):
+            normalized = str(fill_value).lower()
+            if normalized in ("true", "yes", "1"):
                 if field["element"].get_attribute("aria-checked") != "true":
                     field["element"].click()
+            elif normalized not in ("false", "no", "0", "skip"):
+                raise WorkdayApplyError(
+                    f"Invalid checkbox value '{fill_value}' for field '{field['field_name']}'. Expected Yes/No."
+                )
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -1565,7 +1581,11 @@ class WorkdayApplicant:
             for idx, field in enumerate(batch, 1):
                 options_text = ""
                 if field.get("options"):
-                    options_text = f"  Options: {json.dumps(field['options'])}"
+                    # Filter out placeholder values for required dropdowns
+                    opts = field["options"]
+                    if field["required"]:
+                        opts = [o for o in opts if o.lower() not in ("select one", "-- select --", "select", "")]
+                    options_text = f"  Options: {json.dumps(opts)}"
                 required_text = "Required" if field["required"] else "Optional"
                 questions_block += (
                     f"\n{idx}. Question: \"{field['label']}\"\n"
@@ -1593,9 +1613,14 @@ Return a JSON array with one object per question, in order. Each object must hav
 IMPORTANT:
 - If a question seems blank, garbled, incomplete, or impossible to understand, set confidence to 1.
 - If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
+- If the input type is "checkbox", the answer MUST be exactly "Yes" or "No" (nothing else).
 - Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
 - For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format. If unsure about the amount, default to "800000" with confidence {self._confidence_threshold}. Never fail on compensation.
 - For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
+- Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
+
+KNOWN WORKDAY BUGS:
+- Language proficiency sections often include garbage/undefined dropdown fields with labels like "4 - Other", "5 - Unknown", "undefined", or numbered labels that make no sense. These are mandatory but meaningless. For these, always select "Fluent" (or the highest proficiency option available). Never select placeholder values like "Select One" for these fields. Set confidence to 8.
 
 Questions:
 {questions_block}
@@ -1659,8 +1684,13 @@ Return ONLY the JSON array, no markdown fences or extra text."""
         for exp in self._work_exp:
             parts.append(f"  Work: {exp['title']} at {exp['company']} ({exp.get('start_date', '')} - {exp.get('end_date', 'present')})")
 
-        for edu in self._education:
-            parts.append(f"  Education: {edu['degree']} in {edu.get('field', '')} from {edu['institution']} ({edu.get('graduation_year', '')})")
+        edu = self._workday_fields.get("education", {})
+        if edu:
+            degree = edu.get("degree", [""])[0] if isinstance(edu.get("degree"), list) else edu.get("degree", "")
+            field = edu.get("fieldOfStudy", [""])[0] if isinstance(edu.get("fieldOfStudy"), list) else edu.get("fieldOfStudy", "")
+            school = edu.get("school", [""])[0] if isinstance(edu.get("school"), list) else edu.get("school", "")
+            year = edu.get("lastYearAttended", edu.get("endDate", ""))
+            parts.append(f"  Education: {degree} in {field} from {school} ({year})")
 
         return "\n".join(parts)
 
