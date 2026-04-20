@@ -576,6 +576,72 @@ class WorkdayApplicant:
         if not resume_uploaded:
             raise WorkdayApplyError("Resume not found on experience page — upload may have failed")
 
+        # Fill any remaining unfilled fields (Social Network URLs, etc.) via known answers + AI fallback
+        self._fill_remaining_fields(job)
+
+    def _fill_remaining_fields(self, job: dict):
+        """Fill any unfilled fields on the experience page using known answers + AI fallback."""
+        fields = self._scan_page_fields(scope=self._page)
+        unfilled = [f for f in fields if not self._is_field_filled(f)]
+        if not unfilled:
+            return
+
+        logger.info("  Found %d unfilled field(s) on experience page", len(unfilled))
+
+        # First pass: fill from workday_fields
+        ai_fields = []
+        for field in unfilled:
+            name = field["field_name"]
+            if name in self._workday_fields:
+                value = self._workday_fields[name]
+                logger.info("  Filling remaining '%s' → '%s'", name, str(value)[:30])
+                try:
+                    self._fill_field_by_type(field, value)
+                except WorkdayApplyError as e:
+                    logger.warning("  Failed to fill '%s': %s", name, e)
+            else:
+                ai_fields.append(field)
+
+        # Second pass: AI fallback for the rest
+        if ai_fields:
+            logger.info("  Sending %d remaining field(s) to AI", len(ai_fields))
+            for field in ai_fields:
+                if field["input_type"] == "dropdown" and not field.get("options"):
+                    field["options"] = self._get_dropdown_options(field)
+            answers = self._ask_llm_batch(ai_fields, job)
+            for field, answer in zip(ai_fields, answers):
+                if answer == "SKIP":
+                    logger.info("  Skipping field '%s' (LLM said SKIP)", field["field_name"])
+                    continue
+                try:
+                    self._fill_field_by_type(field, answer)
+                except WorkdayApplyError as e:
+                    logger.warning("  Failed to fill '%s': %s", field["field_name"], e)
+
+    def _is_field_filled(self, field: dict) -> bool:
+        """Check if a field already has a value."""
+        container = field["container"]
+        # Multiselect with selected items
+        selected_items = container.query_selector_all('[data-automation-id="selectedItem"]')
+        if selected_items:
+            return True
+        # Dropdown with a selection
+        btn = container.query_selector('button[aria-haspopup="listbox"]')
+        if btn:
+            text = btn.inner_text().strip()
+            return text != "" and text.lower() not in ("select", "select one", "-- select --", "")
+        # Text input
+        inp = container.query_selector("input")
+        if inp:
+            val = inp.get_attribute("value") or ""
+            return val.strip() != ""
+        # Textarea
+        textarea = container.query_selector("textarea")
+        if textarea:
+            val = textarea.input_value() or ""
+            return val.strip() != ""
+        return False
+
     # ── Skills Filling (LLM + Workday API) ──────────────────────
 
     _SKILLS_SYSTEM_ROLE = (
@@ -598,6 +664,9 @@ class WorkdayApplicant:
         existing_skills = self._get_selected_skills(container)
         logger.info("  Skills: %d currently selected: %s", len(existing_skills), existing_skills)
 
+        # Clean skill names for LLM (strip "(Suggested)" suffix)
+        clean_skills = [s.replace(" (Suggested)", "").strip() for s in existing_skills]
+
         # Read resume tex for context (no bias from config skills list)
         resume_content = ""
         if pdf_path:
@@ -614,11 +683,12 @@ class WorkdayApplicant:
             f"Company: {job.get('company', '')}\n"
             f"Job Description: {job.get('job_description', '')}\n\n"
             f"Candidate's Resume:\n{resume_content}\n\n"
-            f"Currently Selected Skills in Application: {existing_skills}\n\n"
+            f"Currently Selected Skills in Application: {clean_skills}\n\n"
             f"Target: {skills_min} to {skills_max} relevant skills for this specific job.\n\n"
             f"Instructions:\n"
             f"- REMOVE skills that are irrelevant to this job (e.g. 'Protein A' for a software role)\n"
             f"- ADD skills that are relevant and the candidate actually has based on the resume\n"
+            f"- NEVER add skills that are already in the Currently Selected list above\n"
             f"- Use exact, standard skill names (1-3 words, e.g. 'Java', 'Python', 'SQL', 'Docker')\n"
             f"- Prioritize skills mentioned in the job description\n"
             f"- Keep skills that are already selected AND relevant\n\n"
@@ -654,7 +724,7 @@ class WorkdayApplicant:
         # Back-and-forth: ask LLM for alternatives with valid options from API
         retry = 0
         current_count = len(existing_skills) - len(to_remove) + len(added)
-        while not_found_with_options and retry < max_retries and current_count < skills_min:
+        while not_found_with_options and retry < max_retries:
             retry += 1
             logger.info("  Skills retry %d/%d: %d total, %d not found",
                         retry, max_retries, current_count, len(not_found_with_options))
@@ -799,65 +869,54 @@ class WorkdayApplicant:
         return None, []
 
     def _check_skill_in_ui(self, container, skill_name: str):
-        """Type skill in the search, press Enter to search, find and check its checkbox."""
+        """Search for a skill and add it. Raises WorkdayApplyError if not added."""
         multiselect = container.query_selector(_SEL["multiselect"])
         if not multiselect:
-            return
+            raise WorkdayApplyError(f"Skills multiselect not found when adding '{skill_name}'")
         search_input = multiselect.query_selector("input")
         if not search_input:
-            return
+            raise WorkdayApplyError(f"Skills search input not found when adding '{skill_name}'")
 
+        # Type and search
         search_input.click(force=True)
         search_input.fill("")
         search_input.type(skill_name)
         search_input.press("Enter")
-        container.wait_for_selector(_SEL["menu_item"], timeout=5000)
+        self._page.wait_for_selector('[data-automation-id="activeListContainer"]', timeout=5000)
+        active_list = self._page.query_selector('[data-automation-id="activeListContainer"]')
+        search_scope = active_list if active_list else container
 
-        # Find matching menu item scoped to this container
-        menu_items = container.query_selector_all(_SEL["menu_item"])
-        for item in menu_items:
+        for item in search_scope.query_selector_all(_SEL["menu_item"]):
             label_el = item.query_selector(_SEL["prompt_option"])
             if label_el:
-                label = label_el.get_attribute("data-automation-label") or ""
-                if label.lower() == skill_name.lower():
-                    checkbox = item.query_selector('input[type="checkbox"]')
-                    if checkbox and checkbox.get_attribute("aria-checked") != "true":
-                        checkbox.click()
-                        logger.info("    Checked skill: '%s'", skill_name)
+                label = (label_el.get_attribute("data-automation-label") or "").lower()
+                if label == skill_name.lower():
+                    item.query_selector('[data-automation-id="promptLeafNode"]').click()
+                    time.sleep(0.5)
                     break
 
-        search_input.fill("")
-        time.sleep(0.3)
+        # Verify skill was added
+        time.sleep(0.5)
+        selected = self._get_selected_skills(container)
+        if any(skill_name.lower() in s.lower() for s in selected):
+            search_input.fill("")
+            return
+        raise WorkdayApplyError(f"Skill '{skill_name}' was not added after attempt")
 
     def _uncheck_skill_in_ui(self, container, skill_name: str):
-        """Type skill in the search, press Enter to search, find and uncheck its checkbox."""
-        multiselect = container.query_selector(_SEL["multiselect"])
-        if not multiselect:
-            return
-        search_input = multiselect.query_selector("input")
-        if not search_input:
-            return
-
-        search_input.click(force=True)
-        search_input.fill("")
-        search_input.type(skill_name)
-        search_input.press("Enter")
-        container.wait_for_selector(_SEL["menu_item"], timeout=5000)
-
-        menu_items = container.query_selector_all(_SEL["menu_item"])
-        for item in menu_items:
-            label_el = item.query_selector(_SEL["prompt_option"])
-            if label_el:
-                label = label_el.get_attribute("data-automation-label") or ""
-                if label.lower() == skill_name.lower():
-                    checkbox = item.query_selector('input[type="checkbox"]')
-                    if checkbox and checkbox.get_attribute("aria-checked") == "true":
-                        checkbox.click()
-                        logger.info("    Unchecked skill: '%s'", skill_name)
-                    break
-
-        search_input.fill("")
-        time.sleep(0.3)
+        """Remove a skill by clicking the X (DELETE_charm) on its pill."""
+        pills = container.query_selector_all('[data-automation-id="selectedItem"]')
+        skill_lower = skill_name.lower().replace(" (suggested)", "")
+        for pill in pills:
+            label = (pill.get_attribute("title") or "").lower().replace(" (suggested)", "")
+            if label == skill_lower:
+                delete_btn = pill.query_selector('[data-automation-id="DELETE_charm"]')
+                if delete_btn:
+                    delete_btn.click()
+                    logger.info("    Removed skill: '%s'", skill_name)
+                    time.sleep(0.3)
+                return
+        logger.debug("    Skill pill not found for removal: '%s'", skill_name)
 
     def _get_cxs_base_url(self) -> str:
         """Get the CXS API base URL from the current browser URL."""
