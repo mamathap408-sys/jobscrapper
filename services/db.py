@@ -79,6 +79,7 @@ class JobDatabase:
                 job_id TEXT NOT NULL UNIQUE,
                 status TEXT NOT NULL DEFAULT 'pending',
                 error_message TEXT,
+                answer_reasoning TEXT,
                 applied_at TIMESTAMP,
                 created_at TIMESTAMP NOT NULL,
                 FOREIGN KEY (job_id) REFERENCES seen_jobs(job_id)
@@ -288,12 +289,12 @@ class JobDatabase:
         )
         self._conn.commit()
 
-    def mark_applied(self, job_id: str):
+    def mark_applied(self, job_id: str, answer_reasoning: str):
         """Mark a job application as successfully submitted."""
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
-            "UPDATE applied_jobs SET status = 'submitted', applied_at = ?, error_message = NULL WHERE job_id = ?",
-            (now, job_id),
+            "UPDATE applied_jobs SET status = 'submitted', applied_at = ?, answer_reasoning = ?, error_message = NULL WHERE job_id = ?",
+            (now, answer_reasoning, job_id),
         )
         self._conn.commit()
 

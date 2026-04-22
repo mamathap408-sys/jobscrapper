@@ -186,6 +186,7 @@ class WorkdayApplicant:
         self._test_mode = self._apply_cfg.get("test_mode", False)
         self._apply_email = answers.get("workday_account", {}).get("email", "")
 
+        self._answer_reasoning: str = ""
         self._pw = None
         self._browser = None
         self._context = None
@@ -459,13 +460,13 @@ class WorkdayApplicant:
             raise WorkdayApplyError(f"LLM eligibility review returned unparseable response: {text[:200]}")
 
         verdict = result.get("verdict", "").lower()
-        if verdict == "eligible":
-            logger.info("LLM eligibility check PASSED — proceeding to submit")
-            return
-        else:
+        self._answer_reasoning = result.get("reasoning", "")
+        if verdict != "eligible":
             reasons = result.get("reasons", ["Unknown reason"])
             reasons_str = "; ".join(reasons)
             raise WorkdayApplyError(f"LLM eligibility check FAILED: {reasons_str}")
+
+        logger.info("LLM eligibility check PASSED")
 
     def _fill_application(self, job: dict, pdf_path: Path, resume_data: dict):
         """Walk through the Workday application form dynamically."""
@@ -888,12 +889,16 @@ class WorkdayApplicant:
         active_list = self._page.query_selector('[data-automation-id="activeListContainer"]')
         search_scope = active_list if active_list else container
 
-        for item in search_scope.query_selector_all(_SEL["menu_item"]):
+        items = search_scope.query_selector_all(_SEL["menu_item"])
+        for item in items:
             label_el = item.query_selector(_SEL["prompt_option"])
             if label_el:
                 label = (label_el.get_attribute("data-automation-label") or "").lower()
                 if label == skill_name.lower():
-                    item.query_selector('[data-automation-id="promptLeafNode"]').click()
+                    leaf_node = item.query_selector('[data-automation-id="promptLeafNode"]')
+                    already_checked = (leaf_node.get_attribute("data-automation-checked") or "").lower() == "checked" if leaf_node else False
+                    if leaf_node and not already_checked:
+                        leaf_node.click()
                     time.sleep(0.5)
                     break
 

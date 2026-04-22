@@ -225,7 +225,7 @@ def main():
 
                         resume_data = parse_resume_tex(pdf_path)
                         applicant.apply(job, pdf_path, resume_data)
-                        db.mark_applied(job_id)
+                        db.mark_applied(job_id, answer_reasoning=applicant._answer_reasoning)
                         submitted += 1
                         logger.info("Applied [%d/%d]: %s at %s",
                                     job_num, total, job["title"], job["company"])

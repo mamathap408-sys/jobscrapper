@@ -118,7 +118,11 @@ INSTRUCTIONS:
 - Compare the filled application against the candidate's actual profile/answers AND workday mapping above.
 - Verify all fields match the candidate's real information (name, email, phone, address, work history, education).
 - Check that application answers are appropriate for this specific job and company.
-- If ALL criteria are satisfied, respond with exactly: {{"verdict": "eligible"}}
-- If ANY criteria is NOT satisfied, respond with: {{"verdict": "not_eligible", "reasons": ["reason 1", "reason 2", ...]}}
+- For EACH field/answer on the review page, include the full question/field label and its answer, then explain why it's correct by citing the source:
+  * If the value comes from workday_answers.yaml, quote the exact key and value (e.g., "country: India from workday_answers.yaml")
+  * If it's an obvious/standard answer, explain the reasoning (e.g., "Yes to willing to relocate — standard positive response for job applications")
+  * If it was answered by AI, explain why it's appropriate for this role
+- If ALL criteria are satisfied, respond with: {{"reasoning": "<per-field justification list with full question and answer>", "verdict": "eligible"}}
+- If ANY criteria is NOT satisfied, respond with: {{"reasoning": "<per-field justification list with full question and answer>", "verdict": "not_eligible", "reasons": ["reason 1", "reason 2", ...]}}
 - Be strict on dates, names, and required fields. Be lenient on values that match any entry in an array.
 - Only return the JSON object, no other text."""
