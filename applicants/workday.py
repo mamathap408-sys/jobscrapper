@@ -880,7 +880,11 @@ class WorkdayApplicant:
         search_input.fill("")
         search_input.type(skill_name)
         search_input.press("Enter")
-        self._page.wait_for_selector('[data-automation-id="activeListContainer"]', timeout=5000)
+        # Wait for real search results (multiSelectHeader), not the instant "No Items." placeholder
+        try:
+            self._page.wait_for_selector('[data-automation-id="multiSelectHeader"]', timeout=8000)
+        except Exception:
+            pass
         active_list = self._page.query_selector('[data-automation-id="activeListContainer"]')
         search_scope = active_list if active_list else container
 
