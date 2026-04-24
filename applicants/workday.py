@@ -546,11 +546,18 @@ class WorkdayApplicant:
         edu_section = self._page.query_selector('[aria-labelledby="Education-section"]')
         if edu_section:
             edu = self._workday_fields.get("education", {})
-            logger.info("  Adding education entry")
-            self._click_section_add("Education")
-            time.sleep(1)
-            panel = self._get_last_panel("Education")
-            self._fill_section_panel(panel, edu)
+            # Check if there's already a panel (undeletable default from autofill)
+            existing_panel = self._get_last_panel("Education")
+            has_existing = existing_panel and existing_panel.query_selector('[data-automation-id*="formField"]')
+            if has_existing:
+                logger.info("  Filling existing education panel (no delete button)")
+                self._fill_section_panel(existing_panel, edu)
+            else:
+                logger.info("  Adding education entry")
+                self._click_section_add("Education")
+                time.sleep(1)
+                panel = self._get_last_panel("Education")
+                self._fill_section_panel(panel, edu)
         else:
             logger.info("  No Education section on this portal — skipping")
 
@@ -883,7 +890,7 @@ class WorkdayApplicant:
         search_input.press("Enter")
         # Wait for real search results (multiSelectHeader), not the instant "No Items." placeholder
         try:
-            self._page.wait_for_selector('[data-automation-id="multiSelectHeader"]', timeout=8000)
+            self._page.wait_for_selector('[data-automation-id="multiSelectHeader"]', timeout=5000)
         except Exception:
             pass
         active_list = self._page.query_selector('[data-automation-id="activeListContainer"]')
@@ -1624,7 +1631,7 @@ IMPORTANT:
 - If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
 - If the input type is "checkbox", the answer MUST be exactly "Yes" or "No" (nothing else).
 - Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
-- For salary/compensation questions, always give the full numeric value (e.g. "900000") unless the question specifically asks for lakhs or LPA format. If unsure about the amount, default to "800000" with confidence {self._confidence_threshold}. Never fail on compensation.
+- For salary/compensation questions, always answer in LPA format (e.g. "8 LPA INR", "10 LPA"). Never write the raw numeric form like "800000". If unsure about the amount, default to "8 LPA INR" with confidence {self._confidence_threshold}. Never fail on compensation.
 - For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
 - Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
 
