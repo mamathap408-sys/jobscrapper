@@ -23,6 +23,7 @@ from pathlib import Path
 from config import load_config, load_answers
 from config.loader import ANSWERS_PATH
 from services.db import JobDatabase
+from services.resume_builder import ResumeBuilder
 from applicants import detect_applicant_type, get_applicant
 from applicants.resume_parser import parse_resume_tex
 
@@ -131,6 +132,7 @@ def main():
     apply_email = answers.get("workday_account", {}).get("email", "")
     resume_email = apply_cfg.get("resume_email", "")
     tex_bin = config.get("resume_builder", {}).get("tex_bin", "")
+    regenerate_resumes = apply_cfg.get("regenerate_resumes", False)
 
     try:
         # Determine which jobs to apply to
@@ -215,6 +217,16 @@ def main():
                             db.mark_expired(job_id)
                             failed += 1
                             continue
+
+                        # Regenerate resume if configured
+                        if regenerate_resumes:
+                            builder = ResumeBuilder(config, db)
+                            try:
+                                builder.regenerate_for_job_id(job_id)
+                            except Exception as e:
+                                logger.warning("Resume regeneration failed for %s: %s", job["title"], e)
+                            finally:
+                                builder.close()
 
                         # Prepare resume (recompile if emails differ)
                         pdf_path = prepare_resume(

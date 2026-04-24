@@ -135,6 +135,54 @@ class ResumeBuilder:
             job_id=job_id,
         )
 
+    def regenerate_for_job_id(self, job_id: str) -> Path | None:
+        """Regenerate and overwrite the existing resume for a job."""
+        job = self._db.get_job_by_id(job_id)
+        if not job:
+            logger.error("Job ID '%s' not found in database", job_id)
+            return None
+
+        resume_name = job.get("resume_name")
+        if not resume_name:
+            return self.generate_for_job_id(job_id)
+
+        jd = job.get("job_description") or ""
+        if not jd.strip():
+            logger.error("Job ID '%s' has no description — cannot regenerate", job_id)
+            return None
+
+        logger.info("Regenerating resume '%s' for: %s at %s", resume_name, job["title"], job["company"])
+
+        prompt = _TAILOR_PROMPT.format(base_resume=self._base_resume, job_description=jd)
+        prompt += _EXPERIENCE_BOOST_PROMPT
+
+        try:
+            tailored_tex = self._client.chat(prompt)
+        except Exception as e:
+            logger.error("LLM call failed for regeneration of '%s': %s", resume_name, e)
+            return None
+
+        tailored_tex = tailored_tex.strip()
+        if tailored_tex.startswith("```"):
+            tailored_tex = tailored_tex[tailored_tex.find("\n") + 1:]
+        if tailored_tex.endswith("```"):
+            tailored_tex = tailored_tex[:-3].rstrip()
+
+        if "\\documentclass" not in tailored_tex:
+            logger.error("LLM output doesn't look like valid LaTeX for '%s'", resume_name)
+            return None
+
+        tex_path = OUTPUT_DIR / f"{resume_name}.tex"
+        tex_path.write_text(tailored_tex, encoding="utf-8")
+
+        pdf_path = self._compile_tex_to_pdf(tex_path)
+        if not pdf_path:
+            logger.error("PDF compilation failed for %s", tex_path)
+            return None
+
+        logger.info("Regenerated resume: %s", pdf_path)
+        return pdf_path
+
     def generate_from_file(self, file_path: str) -> Path | None:
         """Generate a tailored resume from a job description text file.
 

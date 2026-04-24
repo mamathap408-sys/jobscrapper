@@ -493,11 +493,11 @@ class WorkdayApplicant:
 
             # Route to correct page handler
             if self._page.query_selector(_SEL["info_page"]):
-                self._fill_form_page(job)
+                self._fill_form_page_with_loop(job)
             elif self._page.query_selector(_SEL["exp_page"]):
                 self._fill_experience_page(resume_data, job, pdf_path)
             else:
-                self._fill_form_page(job)
+                self._fill_form_page_with_loop(job)
             self._click_next()
 
     def _upload_resume(self, pdf_path: Path):
@@ -1138,6 +1138,7 @@ class WorkdayApplicant:
             search_input.click(force=True)
             search_input.fill("")
             search_input.type(candidate)
+            time.sleep(2)
             search_input.press("Enter")
 
             # Check if Enter auto-selected (pill appeared)
@@ -1244,9 +1245,22 @@ class WorkdayApplicant:
         self._page.wait_for_selector(_SEL["dropdown_listbox"], state="hidden", timeout=3000)
         return texts
 
-    def _fill_form_page(self, job: dict):
-        """Detect and fill all form fields on the current page."""
-        fields = self._scan_page_fields(scope=self._page)
+    def _fill_form_page_with_loop(self, job: dict):
+        """Fill form fields, re-scanning for conditional fields that appear after filling."""
+        filled_names = set()
+        for pass_num in range(3):
+            fields = self._scan_page_fields(scope=self._page)
+            new_fields = [f for f in fields if f["field_name"] not in filled_names]
+            if not new_fields:
+                break
+            if pass_num > 0:
+                logger.info("  Pass %d: %d new field(s) appeared", pass_num + 1, len(new_fields))
+            filled_names.update(f["field_name"] for f in new_fields)
+            self._fill_form_page_fields(new_fields, job)
+            time.sleep(1)
+
+    def _fill_form_page_fields(self, fields: list, job: dict):
+        """Fill a list of scanned fields (known fields + AI batch for unknowns)."""
         logger.info("Page has %d fillable field(s)", len(fields))
 
         ai_fields = []  # Fields that need LLM answers
@@ -1631,9 +1645,10 @@ IMPORTANT:
 - If the input type is "dropdown" or "radio", the answer MUST be one of the available options exactly.
 - If the input type is "checkbox", the answer MUST be exactly "Yes" or "No" (nothing else).
 - Any answer with confidence below {self._confidence_threshold} will FAIL the application and require manual review. Only set confidence below {self._confidence_threshold} if you are truly unsure.
-- For salary/compensation questions, always answer in LPA format (e.g. "8 LPA INR", "10 LPA"). Never write the raw numeric form like "800000". If unsure about the amount, default to "8 LPA INR" with confidence {self._confidence_threshold}. Never fail on compensation.
+- For salary/compensation questions: if the field is a free text field, answer in LPA format (e.g. "8 LPA INR"). If the field seems to expect a numeric value (e.g. label says "in INR" or "annual salary"), write the full number (e.g. "800000" for 8 LPA). Never answer with just a single digit like "6" or "8". Default to "800000" if unsure. Never fail on compensation.
 - For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
 - Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
+- For any visa/sponsorship question: the applicant is an Indian citizen working in India and does NOT require any visa sponsorship. Always answer "No" to sponsorship questions.
 
 KNOWN WORKDAY BUGS:
 - Language proficiency sections often include garbage/undefined dropdown fields with labels like "4 - Other", "5 - Unknown", "undefined", or numbered labels that make no sense. These are mandatory but meaningless. For these, always select "Fluent" (or the highest proficiency option available). Never select placeholder values like "Select One" for these fields. Set confidence to 8.
