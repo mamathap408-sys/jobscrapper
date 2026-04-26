@@ -541,11 +541,18 @@ class WorkdayApplicant:
 
         work_exp = resume_data.get("work_experience", [])
 
+        # Check if there's an undeletable default panel left after clear
+        existing_panel = self._get_last_panel("Work-Experience")
+        has_existing = existing_panel and existing_panel.query_selector('[data-automation-id*="formField"]')
+
         # Fill work experience entries
         for i, exp in enumerate(work_exp):
             logger.info("  Adding work experience %d: %s at %s", i + 1, exp.get("jobTitle", ""), exp.get("companyName", ""))
-            self._click_section_add("Work-Experience")
-            self._page.wait_for_selector(_SEL["exp_job_title"], timeout=_TIMEOUT)
+            if i == 0 and has_existing:
+                logger.info("  Filling existing experience panel (no delete button)")
+            else:
+                self._click_section_add("Work-Experience")
+                self._page.wait_for_selector(_SEL["exp_job_title"], timeout=_TIMEOUT)
             self._fill_work_experience_entry(exp)
 
         # Fill education (from workday_answers.yaml)
@@ -1229,9 +1236,11 @@ class WorkdayApplicant:
         month_input = container.query_selector(_SEL["date_month"])
         year_input = container.query_selector(_SEL["date_year"])
         if month_input:
-            month_input.fill(month)
+            month_input.fill("")
+            month_input.type(month.zfill(2))
         if year_input:
-            year_input.fill(year)
+            year_input.fill("")
+            year_input.type(year)
 
     # ── Generic Page Filler ────────────────────────────────────
 
@@ -1336,7 +1345,10 @@ class WorkdayApplicant:
             # Detect field type and check if already filled
             field = self._classify_field(container, field_name)
             if field:
-                fields.append(field)
+                if isinstance(field, list):
+                    fields.extend(field)
+                else:
+                    fields.append(field)
 
         return fields
 
@@ -1401,18 +1413,34 @@ class WorkdayApplicant:
                 "options": [],
             }
 
-        # Check for checkbox
-        checkbox = container.query_selector("input[type='checkbox']")
-        if checkbox:
-            return {
-                "field_name": field_name,
-                "label": self._get_container_label(container),
-                "input_type": "checkbox",
-                "required": self._container_is_required(container),
-                "container": container,
-                "element": checkbox,
-                "options": [],
-            }
+        # Check for checkbox(es) — each checkbox becomes its own field
+        checkboxes = container.query_selector_all("input[type='checkbox']")
+        if checkboxes:
+            q_el = container.query_selector(_SEL["legend_richtext"])
+            if not q_el:
+                q_el = container.query_selector("legend")
+            question_label = ""
+            if q_el:
+                question_label = q_el.inner_text().strip().rstrip("*").strip()
+            results = []
+            for cb in checkboxes:
+                cb_id = cb.get_attribute("id")
+                lbl = container.query_selector(f"label[for='{cb_id}']") if cb_id else None
+                cb_label = lbl.inner_text().strip() if lbl else ""
+                if question_label and cb_label:
+                    full_label = f"{question_label}: {cb_label}"
+                else:
+                    full_label = cb_label or question_label or self._get_container_label(container)
+                results.append({
+                    "field_name": field_name,
+                    "label": full_label,
+                    "input_type": "checkbox",
+                    "required": self._container_is_required(container),
+                    "container": container,
+                    "element": cb,
+                    "options": [],
+                })
+            return results
 
         # Check for text input
         text_input = container.query_selector("input[type='text']")
