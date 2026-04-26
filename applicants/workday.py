@@ -385,6 +385,12 @@ class WorkdayApplicant:
         """Automatically sign in using stored credentials."""
         logger.info("Auto sign-in for tenant: %s", self._current_tenant)
 
+        # Some portals show social sign-in options first; click "Sign in with email"
+        email_btn = self._page.query_selector('[data-automation-id="SignInWithEmailButton"]')
+        if email_btn:
+            email_btn.click()
+            self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
+
         # Fill email and password (click to focus, then type for reliability)
         self._page.click(_SEL["auth_email"])
         self._page.fill(_SEL["auth_email"], "")
