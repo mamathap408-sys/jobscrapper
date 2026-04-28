@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import load_config, load_answers
@@ -133,6 +134,7 @@ def main():
     resume_email = apply_cfg.get("resume_email", "")
     tex_bin = config.get("resume_builder", {}).get("tex_bin", "")
     regenerate_resumes = apply_cfg.get("regenerate_resumes", False)
+    resume_freshness_days = apply_cfg.get("resume_freshness_days", 5)
 
     try:
         # Determine which jobs to apply to
@@ -218,15 +220,24 @@ def main():
                             failed += 1
                             continue
 
-                        # Regenerate resume if configured
+                        # Regenerate resume if configured (skip if recently generated)
                         if regenerate_resumes:
-                            builder = ResumeBuilder(config, db)
-                            try:
-                                builder.regenerate_for_job_id(job_id)
-                            except Exception as e:
-                                logger.warning("Resume regeneration failed for %s: %s", job["title"], e)
-                            finally:
-                                builder.close()
+                            generated_at = job.get("resume_generated_at")
+                            skip_regen = False
+                            if generated_at:
+                                gen_dt = datetime.fromisoformat(generated_at).replace(tzinfo=timezone.utc)
+                                if datetime.now(timezone.utc) - gen_dt < timedelta(days=resume_freshness_days):
+                                    skip_regen = True
+                                    logger.info("Resume recently generated (%s) — skipping regeneration for %s",
+                                                generated_at, job["title"])
+                            if not skip_regen:
+                                builder = ResumeBuilder(config, db)
+                                try:
+                                    builder.regenerate_for_job_id(job_id)
+                                except Exception as e:
+                                    logger.warning("Resume regeneration failed for %s: %s", job["title"], e)
+                                finally:
+                                    builder.close()
 
                         # Prepare resume (recompile if emails differ)
                         pdf_path = prepare_resume(

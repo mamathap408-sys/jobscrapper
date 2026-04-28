@@ -362,7 +362,14 @@ class WorkdayApplicant:
     def _delete_existing_application(self):
         """Navigate to Candidate Home and delete the existing application."""
         logger.info("Navigating to Candidate Home")
-        self._page.click(_SEL["candidate_home"])
+        candidate_home = self._page.query_selector(_SEL["candidate_home"])
+        if candidate_home:
+            candidate_home.click()
+        else:
+            # Some portals hide Candidate Home behind the account menu
+            self._page.click("#accountSettingsButton")
+            self._page.wait_for_selector('[aria-label="Candidate Home"]', timeout=_TIMEOUT)
+            self._page.click('[aria-label="Candidate Home"]')
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
 
         # Click action menu (three dots) on the first application row

@@ -70,7 +70,8 @@ class JobDatabase:
                 notified BOOLEAN DEFAULT 0,
                 matched BOOLEAN DEFAULT 0,
                 job_description TEXT,
-                resume_name TEXT
+                resume_name TEXT,
+                resume_generated_at TIMESTAMP
             )
         """)
         self._conn.execute("""
@@ -228,9 +229,19 @@ class JobDatabase:
 
     def set_resume_name(self, job_id: str, resume_name: str):
         """Store the generated resume filename for a job."""
+        now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
-            "UPDATE seen_jobs SET resume_name = ? WHERE job_id = ?",
-            (resume_name, job_id),
+            "UPDATE seen_jobs SET resume_name = ?, resume_generated_at = ? WHERE job_id = ?",
+            (resume_name, now, job_id),
+        )
+        self._conn.commit()
+
+    def set_resume_generated_at(self, job_id: str):
+        """Update the resume generation timestamp (used by regeneration)."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            "UPDATE seen_jobs SET resume_generated_at = ? WHERE job_id = ?",
+            (now, job_id),
         )
         self._conn.commit()
 

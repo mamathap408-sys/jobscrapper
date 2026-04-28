@@ -180,6 +180,7 @@ class ResumeBuilder:
             logger.error("PDF compilation failed for %s", tex_path)
             return None
 
+        self._db.set_resume_generated_at(job_id)
         logger.info("Regenerated resume: %s", pdf_path)
         return pdf_path
 
