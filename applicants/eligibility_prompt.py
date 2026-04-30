@@ -50,6 +50,10 @@ ELIGIBILITY CRITERIA — The application MUST satisfy ALL of the following to be
    - Education dates are reasonable (not in the future)
    - The candidate's current work status answer is consistent with work history
      (e.g., if "I currently work here" is "No" for all entries, should not claim current employment elsewhere)
+   - Work experience dates (start/end for each role) must match the candidate's resume/profile data.
+     If the application shows different months or years than what the candidate's answers provide, flag it.
+   - Education dates must match the workday mapping values (e.g., startDate, endDate, lastYearAttended).
+     If the application shows a different graduation year or attendance period than what's in the workday mapping, flag it.
 
 9. MISSING ANSWERS (compare application vs candidate answers)
    - If the candidate's answers/profile has data for a field but the application shows "No Response" or is blank, flag it
@@ -91,11 +95,8 @@ ELIGIBILITY_PROMPT_TEMPLATE = """You are reviewing a job application before fina
 
 {criteria}
 
-CANDIDATE PROFILE & ANSWERS (this is the source of truth for who the candidate is):
+CANDIDATE PROFILE & FORM FIELD MAPPING (source of truth — arrays mean ANY value in the list is acceptable):
 {answers_content}
-
-WORKDAY FORM FIELD MAPPING (used to fill form fields — arrays mean ANY value in the list is acceptable):
-{workday_answers_content}
 
 IMPORTANT RULES FOR MATCHING:
 - When a field in the workday mapping has an ARRAY of values (e.g. degree: ["Bachelor of Technology", "B.Tech", "B.S."]),

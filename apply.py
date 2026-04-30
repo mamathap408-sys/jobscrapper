@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -24,6 +25,7 @@ from pathlib import Path
 from config import load_config, load_answers
 from config.loader import ANSWERS_PATH
 from services.db import JobDatabase
+from services.genai_client import GenAIClient
 from services.resume_builder import ResumeBuilder
 from applicants import detect_applicant_type, get_applicant
 from applicants.resume_parser import parse_resume_tex
@@ -37,6 +39,118 @@ logger = logging.getLogger("auto_apply")
 
 RESUME_DIR = Path(__file__).parent / "generated_resumes"
 APPLIED_RESUME_DIR = Path(__file__).parent / "applied_resumes"
+
+
+# ── LLM-based invalid job filter ───────────────────────────────
+
+def _filter_invalid_jobs(jobs: list[dict], config: dict, db: JobDatabase) -> list[dict]:
+    """Filter out jobs that are not relevant (wrong location, etc.). Marks them as invalid in DB."""
+    client = GenAIClient(config["genai"])
+    invalid_ids = set()
+
+    for batch_start in range(0, len(jobs), 10):
+        batch = jobs[batch_start:batch_start + 10]
+        job_list = "\n".join(
+            f"{i+1}. \"{j['title']}\" at \"{j['company']}\" — Location: \"{j.get('location', 'unknown')}\""
+            for i, j in enumerate(batch)
+        )
+        prompt = (
+            f"I am a candidate based in Bangalore, India. I can only work in India.\n"
+            f"Check which of these jobs are NOT based in India. Mark them as invalid.\n\n"
+            f"JOBS:\n{job_list}\n\n"
+            f"Return a JSON array: [{{\"index\": 1, \"invalid\": true/false, \"reason\": \"...\"}}]\n"
+            f"Only set invalid=true if the job is clearly NOT in India (e.g., US, UK, Singapore, etc.).\n"
+            f"If location is ambiguous or says 'Multiple Locations', assume valid."
+        )
+        try:
+            response = client.chat(prompt)
+            text = response.strip()
+            if text.startswith("```"):
+                text = text[text.find("\n") + 1:]
+            if text.endswith("```"):
+                text = text[:-3].rstrip()
+            results = json.loads(text)
+            for item in results:
+                if item.get("invalid"):
+                    idx = item["index"] - 1
+                    if 0 <= idx < len(batch):
+                        job = batch[idx]
+                        reason = item.get("reason", "not in India")
+                        logger.info("Invalid job: '%s' at %s — %s", job["title"], job["company"], reason)
+                        db.create_application(job["job_id"])
+                        db.mark_invalid(job["job_id"], reason)
+                        invalid_ids.add(job["job_id"])
+        except Exception as e:
+            logger.warning("Invalid job filter LLM batch failed: %s — skipping filter for this batch", e)
+
+    if invalid_ids:
+        jobs = [j for j in jobs if j["job_id"] not in invalid_ids]
+        logger.info("Invalid job filter: removed %d job(s)", len(invalid_ids))
+    return jobs
+
+
+# ── LLM-based role filter ──────────────────────────────────────
+
+def _filter_skip_roles(jobs: list[dict], skip_roles: list[dict], config: dict, db: JobDatabase) -> list[dict]:
+    """Filter out jobs matching skip_roles using LLM. Marks skipped jobs as failed in DB."""
+    # Build rules text for the prompt
+    rules = []
+    for sr in skip_roles:
+        rule = f"- Role: \"{sr['role']}\" at company: \"{sr['company']}\" — Reason: \"{sr.get('reason', 'not relevant')}\""
+        if sr.get("instructions"):
+            rule += f"\n  Instructions: {sr['instructions']}"
+        rules.append(rule)
+    rules_text = "\n".join(rules)
+
+    # Only check jobs that could potentially match (quick pre-filter by company)
+    skip_companies = {sr["company"].lower() for sr in skip_roles}
+    candidates = [j for j in jobs if j["company"].lower() in skip_companies]
+    if not candidates:
+        return jobs
+
+    client = GenAIClient(config["genai"])
+    skipped_ids = set()
+
+    # Process in batches of 10
+    for batch_start in range(0, len(candidates), 10):
+        batch = candidates[batch_start:batch_start + 10]
+        job_list = "\n".join(
+            f"{i+1}. \"{j['title']}\" at \"{j['company']}\"" for i, j in enumerate(batch)
+        )
+        prompt = (
+            f"You are filtering job applications. Based on the rules below, determine which jobs should be SKIPPED.\n\n"
+            f"SKIP RULES:\n{rules_text}\n\n"
+            f"JOBS TO CHECK:\n{job_list}\n\n"
+            f"For each job, respond with a JSON array of objects: "
+            f"[{{\"index\": 1, \"skip\": true/false, \"reason\": \"...\"}}]\n"
+            f"Only set skip=true if the job clearly matches a skip rule. When in doubt, do NOT skip."
+        )
+        try:
+            response = client.chat(prompt)
+            # Parse JSON from response
+            text = response.strip()
+            if text.startswith("```"):
+                text = text[text.find("\n") + 1:]
+            if text.endswith("```"):
+                text = text[:-3].rstrip()
+            results = json.loads(text)
+            for item in results:
+                if item.get("skip"):
+                    idx = item["index"] - 1
+                    if 0 <= idx < len(batch):
+                        job = batch[idx]
+                        reason = item.get("reason", "role blacklisted")
+                        logger.info("Role filter: skipping '%s' at %s — %s", job["title"], job["company"], reason)
+                        db.create_application(job["job_id"])
+                        db.mark_apply_failed(job["job_id"], reason)
+                        skipped_ids.add(job["job_id"])
+        except Exception as e:
+            logger.warning("Role filter LLM batch failed: %s — skipping filter for this batch", e)
+
+    if skipped_ids:
+        jobs = [j for j in jobs if j["job_id"] not in skipped_ids]
+        logger.info("Role filter: skipped %d job(s)", len(skipped_ids))
+    return jobs
 
 
 # ── Resume preparation ─────────────────────────────────────────
@@ -111,6 +225,171 @@ def prepare_resume(resume_name: str, apply_email: str, resume_email: str = "",
         return None
 
 
+# ── Job loading & filtering ────────────────────────────────────
+
+def _load_jobs(db: JobDatabase, args, threshold: float) -> list[dict]:
+    """Load candidate jobs from DB based on CLI args."""
+    if args.job_id:
+        job = db.get_job_by_id(args.job_id)
+        if not job:
+            print(f"Job not found: {args.job_id}", file=sys.stderr)
+            sys.exit(1)
+        if not job.get("resume_name"):
+            print("No resume generated for this job. Run generate_resume.py first.", file=sys.stderr)
+            sys.exit(1)
+        return [job]
+    else:
+        jobs = db.get_jobs_to_apply(threshold)
+        if not jobs:
+            print("No jobs to apply to (all qualifying jobs already applied or no resumes generated).")
+        return jobs
+
+
+def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: dict, apply_cfg: dict) -> list[dict]:
+    """Run full filter pipeline on new (unvalidated) jobs. Marks survivors as pending."""
+    blacklist = [c.lower() for c in apply_cfg.get("blacklist_companies", [])]
+    skip_roles = apply_cfg.get("skip_roles", [])
+
+    # Blacklist companies
+    if blacklist:
+        before = len(jobs)
+        jobs = [j for j in jobs if j["company"].lower() not in blacklist]
+        skipped = before - len(jobs)
+        if skipped:
+            logger.info("Skipped %d job(s) from blacklisted companies: %s", skipped, ", ".join(blacklist))
+
+    if not jobs:
+        return []
+
+    # Remove unsupported platforms
+    supported = []
+    for job in jobs:
+        if detect_applicant_type(job["url"]):
+            supported.append(job)
+        else:
+            logger.warning("Unsupported platform: %s at %s — %s", job["title"], job["company"], job["url"][:60])
+    jobs = supported
+
+    if not jobs:
+        return []
+
+    # Batch expiry check (HTTP, no browser)
+    answers_raw = ANSWERS_PATH.read_text()
+    by_type = defaultdict(list)
+    for job in jobs:
+        by_type[detect_applicant_type(job["url"])].append(job)
+
+    active = []
+    for atype, type_jobs in by_type.items():
+        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
+        for job in type_jobs:
+            if applicant.is_job_valid(job["url"]):
+                active.append(job)
+            else:
+                logger.info("Job expired: %s at %s", job["title"], job["company"])
+                db.create_application(job["job_id"])
+                db.mark_expired(job["job_id"])
+    jobs = active
+
+    if not jobs:
+        return []
+
+    # LLM invalid job filter (non-India)
+    jobs = _filter_invalid_jobs(jobs, config, db)
+
+    # LLM role filter
+    if jobs and skip_roles:
+        jobs = _filter_skip_roles(jobs, skip_roles, config, db)
+
+    # Mark survivors as pending (validated)
+    for job in jobs:
+        db.create_application(job["job_id"])
+
+    return jobs
+
+
+# ── Apply loop ─────────────────────────────────────────────────
+
+def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict, apply_cfg: dict):
+    """Start browsers and apply to all jobs. Re-checks expiry before each application."""
+    apply_email = answers.get("workday_account", {}).get("email", "")
+    resume_email = apply_cfg.get("resume_email", "")
+    tex_bin = config.get("resume_builder", {}).get("tex_bin", "")
+    regenerate_resumes = apply_cfg.get("regenerate_resumes", False)
+    resume_freshness_days = apply_cfg.get("resume_freshness_days", 5)
+    delay = apply_cfg.get("delay_between_jobs_seconds", 10)
+
+    total = sum(len(jl) for jl in jobs_by_type.values())
+    submitted = 0
+    failed = 0
+    job_num = 0
+
+    answers_raw = ANSWERS_PATH.read_text()
+    for atype, type_jobs in jobs_by_type.items():
+        logger.info("Starting %s applicant for %d job(s)", atype, len(type_jobs))
+        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
+        applicant.start()
+
+        try:
+            for i, job in enumerate(type_jobs):
+                job_num += 1
+                job_id = job["job_id"]
+
+                try:
+                    # Re-check expiry (time may have passed since validation)
+                    if not applicant.is_job_valid(job["url"]):
+                        logger.info("Skipping expired job [%d/%d]: %s at %s",
+                                    job_num, total, job["title"], job["company"])
+                        db.mark_expired(job_id)
+                        failed += 1
+                        continue
+
+                    # Regenerate resume if configured (skip if recently generated)
+                    if regenerate_resumes:
+                        generated_at = job.get("resume_generated_at")
+                        skip_regen = False
+                        if generated_at:
+                            gen_dt = datetime.fromisoformat(generated_at).replace(tzinfo=timezone.utc)
+                            if datetime.now(timezone.utc) - gen_dt < timedelta(days=resume_freshness_days):
+                                skip_regen = True
+                                logger.info("Resume recently generated (%s) — skipping regeneration for %s",
+                                            generated_at, job["title"])
+                        if not skip_regen:
+                            builder = ResumeBuilder(config, db)
+                            try:
+                                builder.regenerate_for_job_id(job_id)
+                            except Exception as e:
+                                logger.warning("Resume regeneration failed for %s: %s", job["title"], e)
+                            finally:
+                                builder.close()
+
+                    # Prepare resume (recompile if emails differ)
+                    pdf_path = prepare_resume(
+                        job["resume_name"], apply_email, resume_email, tex_bin
+                    )
+                    if not pdf_path:
+                        raise RuntimeError(f"Failed to prepare resume: {job['resume_name']}")
+
+                    resume_data = parse_resume_tex(pdf_path)
+                    applicant.apply(job, pdf_path, resume_data)
+                    db.mark_applied(job_id, answer_reasoning=applicant._answer_reasoning)
+                    submitted += 1
+                    logger.info("Applied [%d/%d]: %s at %s",
+                                job_num, total, job["title"], job["company"])
+                except Exception as e:
+                    db.mark_apply_failed(job_id, str(e))
+                    failed += 1
+                    logger.error("Failed [%d/%d] %s at %s: %s",
+                                 job_num, total, job["title"], job["company"], e)
+
+                if i < len(type_jobs) - 1:
+                    time.sleep(delay)
+        finally:
+            applicant.close()
+
+    print(f"\nDone: {submitted} submitted, {failed} failed out of {total} total.")
+
+
 # ── Main ────────────────────────────────────────────────────────
 
 def main():
@@ -128,61 +407,43 @@ def main():
     db = JobDatabase()
     apply_cfg = config.get("apply", {})
     threshold = apply_cfg.get("apply_threshold", 7)
-    delay = apply_cfg.get("delay_between_jobs_seconds", 10)
-    blacklist = [c.lower() for c in apply_cfg.get("blacklist_companies", [])]
-    apply_email = answers.get("workday_account", {}).get("email", "")
-    resume_email = apply_cfg.get("resume_email", "")
-    tex_bin = config.get("resume_builder", {}).get("tex_bin", "")
-    regenerate_resumes = apply_cfg.get("regenerate_resumes", False)
-    resume_freshness_days = apply_cfg.get("resume_freshness_days", 5)
 
     try:
-        # Determine which jobs to apply to
-        if args.job_id:
-            job = db.get_job_by_id(args.job_id)
-            if not job:
-                print(f"Job not found: {args.job_id}", file=sys.stderr)
-                sys.exit(1)
-            if not job.get("resume_name"):
-                print("No resume generated for this job. Run generate_resume.py first.", file=sys.stderr)
-                sys.exit(1)
-            jobs = [job]
+        # Load candidate jobs
+        jobs = _load_jobs(db, args, threshold)
+        if not jobs:
+            return
 
-        elif args.auto:
-            jobs = db.get_jobs_to_apply(threshold)
-            if not jobs:
-                print("No jobs to apply to (all qualifying jobs already applied or no resumes generated).")
-                return
-
-        # Filter out blacklisted companies
-        if blacklist:
-            before = len(jobs)
-            jobs = [j for j in jobs if j["company"].lower() not in blacklist]
-            skipped = before - len(jobs)
-            if skipped:
-                logger.info("Skipped %d job(s) from blacklisted companies: %s", skipped, ", ".join(blacklist))
-            if not jobs:
-                print("No jobs remaining after blacklist filter.")
-                return
-
-        # Group jobs by applicant type
-        jobs_by_type = defaultdict(list)
-        unsupported = []
+        # Split: already-pending (skip filters) vs new (need full pipeline)
+        already_pending = []
+        new_jobs = []
         for job in jobs:
+            app = db.get_application_status(job["job_id"])
+            if app and app["status"] == "pending":
+                already_pending.append(job)
+            else:
+                new_jobs.append(job)
+
+        if already_pending:
+            logger.info("%d job(s) already validated — skipping filters", len(already_pending))
+
+        # Run filters on new jobs only
+        validated = []
+        if new_jobs:
+            validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg)
+
+        # Combine
+        all_jobs = already_pending + validated
+        if not all_jobs:
+            print("No jobs to apply to after all filters.")
+            return
+
+        # Group by applicant type
+        jobs_by_type = defaultdict(list)
+        for job in all_jobs:
             atype = detect_applicant_type(job["url"])
             if atype:
                 jobs_by_type[atype].append(job)
-            else:
-                unsupported.append(job)
-
-        if unsupported:
-            logger.warning("Skipping %d job(s) with unsupported platforms:", len(unsupported))
-            for j in unsupported:
-                logger.warning("  %s at %s — %s", j["title"], j["company"], j["url"][:60])
-
-        if not jobs_by_type:
-            print("No jobs with supported applicant types.")
-            return
 
         # Print summary
         total = sum(len(jl) for jl in jobs_by_type.values())
@@ -193,78 +454,8 @@ def main():
                 print(f"    [{j['match_score']:.0f}] {j['title']} at {j['company']} (resume: {j['resume_name']})")
         print()
 
-        submitted = 0
-        failed = 0
-        job_num = 0
-
-        # Process each applicant type
-        for atype, type_jobs in jobs_by_type.items():
-            logger.info("Starting %s applicant for %d job(s)", atype, len(type_jobs))
-            answers_raw = ANSWERS_PATH.read_text()
-            applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
-            applicant.start()
-
-            try:
-                for i, job in enumerate(type_jobs):
-                    job_num += 1
-                    job_id = job["job_id"]
-
-                    db.create_application(job_id)
-
-                    try:
-                        # Check if job is still active before applying
-                        if not applicant.is_job_valid(job["url"]):
-                            logger.info("Skipping expired job [%d/%d]: %s at %s",
-                                        job_num, total, job["title"], job["company"])
-                            db.mark_expired(job_id)
-                            failed += 1
-                            continue
-
-                        # Regenerate resume if configured (skip if recently generated)
-                        if regenerate_resumes:
-                            generated_at = job.get("resume_generated_at")
-                            skip_regen = False
-                            if generated_at:
-                                gen_dt = datetime.fromisoformat(generated_at).replace(tzinfo=timezone.utc)
-                                if datetime.now(timezone.utc) - gen_dt < timedelta(days=resume_freshness_days):
-                                    skip_regen = True
-                                    logger.info("Resume recently generated (%s) — skipping regeneration for %s",
-                                                generated_at, job["title"])
-                            if not skip_regen:
-                                builder = ResumeBuilder(config, db)
-                                try:
-                                    builder.regenerate_for_job_id(job_id)
-                                except Exception as e:
-                                    logger.warning("Resume regeneration failed for %s: %s", job["title"], e)
-                                finally:
-                                    builder.close()
-
-                        # Prepare resume (recompile if emails differ)
-                        pdf_path = prepare_resume(
-                            job["resume_name"], apply_email, resume_email, tex_bin
-                        )
-                        if not pdf_path:
-                            raise RuntimeError(f"Failed to prepare resume: {job['resume_name']}")
-
-                        resume_data = parse_resume_tex(pdf_path)
-                        applicant.apply(job, pdf_path, resume_data)
-                        db.mark_applied(job_id, answer_reasoning=applicant._answer_reasoning)
-                        submitted += 1
-                        logger.info("Applied [%d/%d]: %s at %s",
-                                    job_num, total, job["title"], job["company"])
-                    except Exception as e:
-                        db.mark_apply_failed(job_id, str(e))
-                        failed += 1
-                        logger.error("Failed [%d/%d] %s at %s: %s",
-                                     job_num, total, job["title"], job["company"], e)
-
-                    if i < len(type_jobs) - 1:
-                        time.sleep(delay)
-            finally:
-                applicant.close()
-
-        # Summary
-        print(f"\nDone: {submitted} submitted, {failed} failed out of {total} total.")
+        # Apply
+        _apply_jobs(jobs_by_type, config, db, answers, apply_cfg)
 
     finally:
         db.close()

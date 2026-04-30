@@ -448,8 +448,6 @@ class WorkdayApplicant:
         else:
             review_content = review_page.inner_text()
 
-        workday_answers_content = _WORKDAY_ANSWERS_PATH.read_text(encoding="utf-8")
-
         skipped_note = ""
         if self._skipped_sections:
             skipped_note = (
@@ -461,7 +459,6 @@ class WorkdayApplicant:
         prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
             criteria=ELIGIBILITY_CRITERIA + skipped_note,
             answers_content=self._answers_raw,
-            workday_answers_content=workday_answers_content,
             job_title=job.get("title", ""),
             job_company=job.get("company", ""),
             job_description=job.get("job_description", ""),

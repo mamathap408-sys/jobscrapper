@@ -325,6 +325,14 @@ class JobDatabase:
         )
         self._conn.commit()
 
+    def mark_invalid(self, job_id: str, reason: str):
+        """Mark a job as invalid (wrong location, irrelevant role, etc.)."""
+        self._conn.execute(
+            "UPDATE applied_jobs SET status = 'invalid', error_message = ? WHERE job_id = ?",
+            (reason, job_id),
+        )
+        self._conn.commit()
+
     def get_jobs_to_apply(self, threshold: float) -> list[dict]:
         """Return jobs eligible for auto-apply (scored, has resume, not yet submitted/expired)."""
         rows = self._conn.execute(
@@ -333,7 +341,7 @@ class JobDatabase:
             WHERE s.match_score >= ?
               AND s.resume_name IS NOT NULL
               AND s.job_id NOT IN (
-                  SELECT job_id FROM applied_jobs WHERE status IN ('submitted', 'expired')
+                  SELECT job_id FROM applied_jobs WHERE status IN ('submitted', 'expired', 'invalid')
               )
             ORDER BY s.match_score DESC
             """,
