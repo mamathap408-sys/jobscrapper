@@ -145,6 +145,11 @@ apply:
   resume_email: "xxxx"  # email on the original resume; if different from personal.email, resume is recompiled with the apply email
   blacklist_companies:               # skip auto-apply for these companies (case-insensitive)
     - "visa"
+  skip_roles:                          # LLM-based role filter (batched before applying)
+    - role: "Resolution Coordinator"
+      company: "Walmart"
+      reason: "too low salary"
+      instructions: "Only skip entry-level 'Resolution Coordinator'. Do NOT skip Sr. Resolution Coordinator, Senior Resolution Coordinator, Lead Resolution Coordinator — those are valid higher-paying roles."
   regenerate_resumes: true             # regenerate resumes before applying (overwrites existing)
   skills_min: 8                      # minimum skills to fill (keep retrying until this)
   skills_max: 20                     # ask LLM for this many candidates per round

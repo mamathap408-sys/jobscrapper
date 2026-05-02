@@ -181,11 +181,6 @@ def prepare_resume(resume_name: str, apply_email: str, resume_email: str = "",
     dst_tex = APPLIED_RESUME_DIR / f"{resume_name}.tex"
     dst_pdf = APPLIED_RESUME_DIR / f"{resume_name}.pdf"
 
-    # If already compiled, reuse it
-    if dst_pdf.exists():
-        logger.info("Using cached applied resume: %s", dst_pdf.name)
-        return dst_pdf
-
     # Copy and swap email
     tex_content = src_tex.read_text(encoding="utf-8")
     tex_content = tex_content.replace(resume_email, apply_email)
@@ -283,12 +278,16 @@ def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: d
     for atype, type_jobs in by_type.items():
         applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
         for job in type_jobs:
-            if applicant.is_job_valid(job["url"]):
-                active.append(job)
-            else:
+            is_valid, status_code = applicant.is_job_valid(job["url"])
+            if not is_valid:
                 logger.info("Job expired: %s at %s", job["title"], job["company"])
                 db.create_application(job["job_id"])
                 db.mark_expired(job["job_id"])
+            elif status_code != 200 and status_code != 0:
+                logger.info("Job check inconclusive (HTTP %d), skipping for now: %s at %s",
+                            status_code, job["title"], job["company"])
+            else:
+                active.append(job)
     jobs = active
 
     if not jobs:
@@ -337,12 +336,17 @@ def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict
 
                 try:
                     # Re-check expiry (time may have passed since validation)
-                    if not applicant.is_job_valid(job["url"]):
+                    is_valid, status_code = applicant.is_job_valid(job["url"])
+                    if not is_valid:
                         logger.info("Skipping expired job [%d/%d]: %s at %s",
                                     job_num, total, job["title"], job["company"])
                         db.mark_expired(job_id)
                         failed += 1
                         continue
+                    if status_code != 200 and status_code != 0:
+                        raise RuntimeError(
+                            f"Job check inconclusive (HTTP {status_code}) — will retry later"
+                        )
 
                     # Regenerate resume if configured (skip if recently generated)
                     if regenerate_resumes:
@@ -416,24 +420,28 @@ def main():
 
         # Split: already-pending (skip filters) vs new (need full pipeline)
         already_pending = []
+        already_failed = []
         new_jobs = []
         for job in jobs:
             app = db.get_application_status(job["job_id"])
             if app and app["status"] == "pending":
                 already_pending.append(job)
+            elif app and app["status"] == "failed":
+                already_failed.append(job)
             else:
                 new_jobs.append(job)
 
-        if already_pending:
-            logger.info("%d job(s) already validated — skipping filters", len(already_pending))
+        if already_pending or already_failed:
+            logger.info("%d pending + %d failed job(s) already validated — skipping filters",
+                        len(already_pending), len(already_failed))
 
         # Run filters on new jobs only
         validated = []
         if new_jobs:
             validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg)
 
-        # Combine
-        all_jobs = already_pending + validated
+        # Combine: pending first, then newly validated, then failed (retries last)
+        all_jobs = already_pending + validated + already_failed
         if not all_jobs:
             print("No jobs to apply to after all filters.")
             return

@@ -242,26 +242,27 @@ class WorkdayApplicant:
             job_url: Full Workday job page URL.
 
         Returns:
-            True if the job is still active, False if expired/removed/unreachable.
+            Tuple of (is_valid, status_code). is_valid is True if job is active,
+            False if expired. status_code is the HTTP status (0 on connection error).
         """
         api_base, external_path = _parse_job_url(job_url)
         if not external_path:
             logger.warning("Could not parse external_path from URL: %s", job_url)
-            return False
+            return False, 0
         try:
             resp = self._http.get(f"{api_base}{external_path}", follow_redirects=False)
             if resp.status_code in (403, 404):
                 logger.info("Job expired (HTTP %d): %s", resp.status_code, job_url)
-                return False
+                return False, resp.status_code
             if resp.status_code != 200:
                 # Redirects (303), server errors (5xx), etc. — not definitively expired
-                logger.warning("Job check inconclusive (HTTP %d): %s — assuming valid", resp.status_code, job_url)
-                return True
+                logger.warning("Job check inconclusive (HTTP %d): %s", resp.status_code, job_url)
+                return True, resp.status_code
             data = resp.json()
-            return "jobPostingInfo" in data
+            return "jobPostingInfo" in data, resp.status_code
         except (httpx.HTTPError, ValueError) as e:
-            logger.warning("Job validity check failed for %s: %s — assuming valid", job_url, e)
-            return True
+            logger.warning("Job validity check failed for %s: %s", job_url, e)
+            return True, 0
 
     # ── Main orchestration ─────────────────────────────────────
 
