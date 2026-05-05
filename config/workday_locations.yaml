@@ -33,8 +33,6 @@ iqvia.wd1.myworkdayjobs.com/en-US/iqvia:
     descriptor: Bangalore, India
   - id: 289c35b082ff01a39bf9d65ef4001812
     descriptor: Hyderabad, Telangana, India
-  - id: c2fa7e0b7ddd1002013053b9a5b30000
-    descriptor: Hyderabad, Telangana, India
 target.wd5.myworkdayjobs.com/en-US/targetcareers:
   Location_Country:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -45,8 +43,6 @@ target.wd5.myworkdayjobs.com/en-US/targetcareers:
   locations:
   - id: daccab9f1d2501dacfb791d63b57fc1f
     descriptor: Bangalore,India
-  - id: 8522059454d601c4ddef19d6e63497a8
-    descriptor: Embassy Manyata Business Park, Bengaluru, KA 560045
   - id: e2db0579f9c901fb155473b09f056c7a
     descriptor: Tower 02, Manyata Embassy Business Park, Racenahali & Nagawara Villages.
       Outer Ring Rd, Bangalore 540065
@@ -79,6 +75,14 @@ collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings:
     descriptor: IND - Karnataka - Bangalore
   - id: 74cad5f2eebd1000b31a57d982b40000
     descriptor: IND - Telangana - Hyderabad
+elevancehealth.wd1.myworkdayjobs.com/en-US/carelonglobal_in:
+  locations:
+  - id: 3ad9dca462c50101e690228198e20000
+    descriptor: IND-KA-Bengaluru, Bagmane Solarium City
+  - id: 3ad9dca462c50101e68e6da20d880000
+    descriptor: IND-KA-Bengaluru, Manyata Embassy Business Park
+  - id: 3ad9dca462c50101e6901d9d26fb0000
+    descriptor: IND-TG-Hyderabad, Avance Business Hub
 cisco.wd5.myworkdayjobs.com/en-US/Cisco_Careers:
   locations:
   - id: 662e524adea41001f4d0bd5a1ddd0000
@@ -94,35 +98,21 @@ salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site:
   locations:
   - id: 1038e944b1101012453f5b10dc370000
     descriptor: India - Bangalore
+  - id: 1038e944b1101012453a0fff44b80000
+    descriptor: India - Bangalore - Remote
   - id: 8ef61f627eb01012453a9ce004d20000
     descriptor: India - Hyderabad
 hpe.wd5.myworkdayjobs.com/en-US/Jobsathpe:
   locations:
   - id: e69f9781661b102191993ababeaeab7e
     descriptor: Bangalore, Karnataka
-  - id: 2e0d9cc9554b01e2d29771af452c2e5f
-    descriptor: Bangalore, Karnataka, India
-  - id: 3950c424ea1c01f4eab9295f422c5549
-    descriptor: Bangalore, Karnataka, India
-  - id: 47385449f64a0194c2172301da2b544a
-    descriptor: Bangalore, Karnataka, India
-  - id: acac3e510b170148f552f5c1dd2b0261
-    descriptor: Bangalore, Karnataka, India
-  - id: bb84e32ded8801269a9ab85edd2b7f5f
-    descriptor: Bangalore, Karnataka, India
-  - id: e459dee6bf0a01c70e0d40a40824d15f
-    descriptor: Bangalore, Karnataka, India
-  - id: e459dee6bf0a01df2022175c0824825d
-    descriptor: Bangalore, Karnataka, India
   - id: 13b3e51a76aa1001318533a039bf0000
+    descriptor: Bengaluru, Karnataka, India
+  - id: 13b3e51a76aa100131853f0ccd6d0000
     descriptor: Bengaluru, Karnataka, India
   - id: 2e0d9cc9554b0101dc0ab314422c3047
     descriptor: Bengaluru, Karnataka, India
-  - id: 8ff86dd7fcb210012ff4dc545eac0000
-    descriptor: Bengaluru, Karnataka, India
   - id: 11d24e7aad931000b97d4e4cae760000
-    descriptor: Bengaluru, Karnātaka, India
-  - id: 12c084a0914b1000b9466bff46760000
     descriptor: Bengaluru, Karnātaka, India
   - id: 62b0c47c914b011dfdeb013405241e47
     descriptor: Bengaluru, Karnātaka, India
@@ -138,18 +128,8 @@ hpe.wd5.myworkdayjobs.com/en-US/Jobsathpe:
     descriptor: Bengaluru, Karnātaka, India
   - id: d34a1ee71b5a0167393362eb26113c73
     descriptor: Bengaluru, Karnātaka, India
-  - id: e923687fe2f31000b98530f0c1e30000
-    descriptor: Bengaluru, Karnātaka, India
-  - id: 0cd2782abf0410012e7337422e600000
-    descriptor: Hyderabad, Telangana, India
-  - id: 11643b7f16a3100130f3a8f83f300000
-    descriptor: Hyderabad, Telangana, India
-  - id: 3950c424ea1c010eb70b2db7452cf45f
-    descriptor: Hyderabad, Telangana, India
   - id: 830a7b3bc187010eedd3bd1cdd2b205f
     descriptor: Hyderabad, Telangana, India
-  - id: e69f9781661b1021919c5ea5232dafef
-    descriptor: India, India
 redhat.wd5.myworkdayjobs.com/en-US/Jobs:
   a:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -165,21 +145,23 @@ broadcom.wd1.myworkdayjobs.com/en-US/External_Career:
     descriptor: IND-Bangalore-Kalyani Vista II
   - id: 0dd627624e2e0176f301cad8dcd9ab0b
     descriptor: IND-Hyderabad 115 IT Park Area
-  - id: 6d1be12dc134103be580f2ed396f3bdf
-    descriptor: India-All Remote Location
+  - id: 752a3c9efe39105be2259b2c18d3b6e4
+    descriptor: India-Bangalore-Remote Location
 tibco.wd5.myworkdayjobs.com/en-US/Cloud_Software_Group:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   locations:
-  - id: 6f4593417300101ce5f18466c483d204
-    descriptor: Bangalore, India
   - id: 20c304a449aa100076fec2ca8e540000
     descriptor: Bangalore, India - Home Office
 paypal.wd1.myworkdayjobs.com/en-US/jobs:
   locations:
   - id: bcdc9518960a0115db738aaa2d241899
     descriptor: Bangalore, Karnataka, India
+snapchat.wd1.myworkdayjobs.com/snap:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
 motorolasolutions.wd5.myworkdayjobs.com/en-US/Careers:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -193,10 +175,6 @@ motorolasolutions.wd5.myworkdayjobs.com/en-US/Careers:
     descriptor: Bangalore, India (ZIN114)
   - id: a5b399b0da0b1000fb9d4e8d7ff00000
     descriptor: Bangalore, India (ZIN122)
-  - id: 72ce36cb352e4b3d991b237a201d44f5
-    descriptor: Bangalore, India (ZIN48)
-  - id: 801ee26ff10b4e2389d3a9d125e02ae3
-    descriptor: India Offsite (ZIN99)
 automationanywhere.wd5.myworkdayjobs.com/AutomationAnywhereJobs:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -221,6 +199,8 @@ micron.wd1.myworkdayjobs.com/External:
     descriptor: Bengaluru, India
   - id: bff7a31dbdd301f4102c28b56401600a
     descriptor: Hyderabad - Phoenix Aquila, India
+  - id: bff7a31dbdd30184310850b464010808
+    descriptor: Hyderabad - Skyview, India
 nxp.wd3.myworkdayjobs.com/en-US/careers:
   Location_Country:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -275,8 +255,8 @@ wf.wd1.myworkdayjobs.com/WellsFargoJobs:
   - id: 3cfc61cd0cf4100004b86c8483b80007
     descriptor: Telangāna
   locations:
-  - id: 93225b9cfc830105d2a2e25b31110000
-    descriptor: 110380-IND-BENGALURU-INTL BLR Twr-1&2 CARNATION
+  - id: 93225b9cfc830105d30177b6a32b0000
+    descriptor: 111442-IND-BENGALURU-INTL BLR BLK B3 PETUNIA
   - id: bddaef21b52c01016acd172f97db0000
     descriptor: Bengaluru, India
   - id: bddaef21b52c01016acaf37b87fe0000
@@ -297,6 +277,8 @@ pwc.wd3.myworkdayjobs.com/en-US/Global_Experienced_Careers:
     descriptor: Hyderabad - Salarpuria
   - id: 6fedfc4a010d10044688ee900a7c0000
     descriptor: Kolkata (AC) - Bangalore Quay - Bagmane Tech Park (KSDC)
+  - id: 3761ae88335410044688ff7c6b3a0000
+    descriptor: Kolkata (AC) - Hyderabad - My Home Twitza (KSDC)
 ms.wd5.myworkdayjobs.com/External:
   Location_Country:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -312,8 +294,6 @@ db.wd3.myworkdayjobs.com/DBWebsite:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   Location:
-  - id: b3df871f1f9d01d7a77c5517a8400645
-    descriptor: Bangalore Velankani ISC
   - id: b3df871f1f9d01d658303b17a840c044
     descriptor: Bangalore, Raheja Towers, 26-27 M. G. Road
   - id: b3df871f1f9d01bd381a9d16a8402043
@@ -336,8 +316,6 @@ barclays.wd3.myworkdayjobs.com/External_Career_Site_Barclays:
   locations:
   - id: 1110a9ca6540100196e1f0c315e90000
     descriptor: Bengaluru, Maruthi Onyx - TESCO TSA
-  - id: 1ab48a98eb7c100163465bf6c3310000
-    descriptor: Prestige Meridian, Bengaluru
 fmr.wd1.myworkdayjobs.com/FidelityCareers:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -350,8 +328,6 @@ fmr.wd1.myworkdayjobs.com/FidelityCareers:
     descriptor: Bangalore, Karnataka
   - id: 3f63b43857bf1000056d0a7b40080000
     descriptor: MANYATA TECH PARK, L5 BUILDING, BANGALORE India
-  - id: 41f0d55c25130183368d3c13929bad0f
-    descriptor: Off Embassy Golf Links Business Park, Bangalore India
 capitalone.wd12.myworkdayjobs.com/Capital_One:
   locations:
   - id: 0f0572524957105948f71e0c0ba44c1d
@@ -369,8 +345,6 @@ svb.wd5.myworkdayjobs.com/firstcitizensindia:
     descriptor: Bangalore, India
 lplfinancial.wd1.myworkdayjobs.com/India_Ext:
   locations:
-  - id: d1d7f104d62f1001add051f9df2e0000
-    descriptor: Hyderabad
   - id: d1d7f104d62f1001af72e3f418ef0000
     descriptor: Hyderabad
 nationwide.wd1.myworkdayjobs.com/en-US/Nationwide_Career_India:
@@ -419,8 +393,6 @@ rockwellautomation.wd1.myworkdayjobs.com/en-US/External_Rockwell_Automation:
     descriptor: Bangalore, India
   - id: 9dab781c832601b9f1fa651ffe0288c6
     descriptor: Bengaluru, India
-  - id: 9dab781c832601bd2077d51ffe0218c8
-    descriptor: Hyderabad, India
 astrazeneca.wd3.myworkdayjobs.com/broadbean_external:
   locations:
   - id: 2c1433a5f2960105bea682732237fbc7
@@ -436,15 +408,9 @@ geaerospace.wd5.myworkdayjobs.com/en-US/GE_ExternalSite:
   locations:
   - id: 74cbdbfadb6e10014f9f9ebd16340000
     descriptor: Bengaluru
-  - id: 74cbdbfadb6e10014faaf4f6cfe90000
-    descriptor: Bengaluru
-  - id: f6f2e0e96f41100144c2a8d14bd00000
-    descriptor: Bengaluru
 gehc.wd5.myworkdayjobs.com/en-US/GEHC_ExternalSite:
   locations:
   - id: 442510cb8a8f100164f9a9903a330000
-    descriptor: Bengaluru
-  - id: 442510cb8a8f100164fd891933a80000
     descriptor: Bengaluru
   - id: 442510cb8a8f100164ffe81dc2c10000
     descriptor: Bengaluru
@@ -453,8 +419,6 @@ gehc.wd5.myworkdayjobs.com/en-US/GEHC_ExternalSite:
   - id: eadc0b38d126100164fa06a5e8a70000
     descriptor: Bengaluru
   - id: 442510cb8a8f100164f86518aaed0000
-    descriptor: Hyderabad
-  - id: 442510cb8a8f10016502d59f10af0000
     descriptor: Hyderabad
   - id: 442510cb8a8f100165026bfdd9930000
     descriptor: IND19-01-Bengaluru-EPIP 122 (Phase II)
@@ -465,6 +429,8 @@ alcon.wd5.myworkdayjobs.com/en-US/careers_alcon:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   locations:
+  - id: 87d78ba4688f01b014c2a6112f01d016
+    descriptor: Bangalore - AGS
   - id: f5c842308d5801271755fe289e01cbb3
     descriptor: Bangalore, India
 amgen.wd1.myworkdayjobs.com/en-US/Careers:
@@ -489,8 +455,6 @@ shell.wd3.myworkdayjobs.com/en-US/ShellCareers:
     descriptor: Bangalore - Retail Office
   - id: a87fe1bd64b8015f2f9092a3a72c4f0e
     descriptor: Bangalore RMZ-ECO WORLD
-  - id: a87fe1bd64b80132aef7aea6a72cf319
-    descriptor: Shell Technology Centre - Bangalore
 warnerbros.wd5.myworkdayjobs.com/global:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
@@ -498,8 +462,8 @@ warnerbros.wd5.myworkdayjobs.com/global:
   locations:
   - id: 0f0d878554ae100142ad73a312720000
     descriptor: Bangalore - Embassy Tech Village
-  - id: 823b58a1540d1001f6371a327f9a0000
-    descriptor: Bangalore, Global Tech Park Tower C 5th F
+  - id: 9236041c6b6610019aabcb1bfe4c0000
+    descriptor: Hyderabad - Phoenix Equinox Tower 2
   - id: c4aaba0bc9401001a525dd4a94550000
     descriptor: Hyderabad, Office Level 3 & 4, Block A - East Wing
 unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals:
@@ -507,8 +471,6 @@ unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   locations:
-  - id: bf41697e83411039976efe5a7f3e63e3
-    descriptor: Unilever R&D Bangalore
   - id: bf41697e834110399781b8dc19768071
     descriptor: Uniops Bangalore Centre
 fox.wd1.myworkdayjobs.com/Domestic:
@@ -526,27 +488,295 @@ visa.wd5.myworkdayjobs.com/en-US/Visa:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   locations:
-  - id: 2745bc1368021017451b1ce71d2ab67a
-    descriptor: Bengaluru, India
   - id: 6a6b666e8c601001fe40e79f253d0000
     descriptor: IN - Bengaluru, India
-walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal:
+autodesk.wd1.myworkdayjobs.com/en-US/Ext:
+  State_Region:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 33c9184ffc6401d8fc8eb2276301dc40
+    descriptor: Bengaluru, IND
+cadence.wd1.myworkdayjobs.com/en-US/External_Careers:
+  Location_Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  Location_Region_State_Province:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  - id: 3cfc61cd0cf4100004b86c8483b80007
+    descriptor: Telangāna
+  locations:
+  - id: 6418637d4d5010bf8a99a4926e59612e
+    descriptor: BANGALORE
+  - id: 84b6cfd69db310b0db9d79bf33759a36
+    descriptor: BANGALORE 05
+  - id: 6418637d4d5010bf8a99b84a103c613d
+    descriptor: HYDERABAD
+  - id: d1bbeffd71a2100121c577c184b10000
+    descriptor: HYDERABAD 04
+  - id: 5841a2037f7310010cd81eabb59d0000
+    descriptor: INVECAS HYDERABAD
+crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 1ef4d36ff0a8010152a9493268ed0000
+    descriptor: India - Bangalore
+  - id: b76e52cb5db41001dda2c7a4837d0000
+    descriptor: India - Remote
+  - id: f7e78ef5bc2e011090c1f3a4a40e514e
+    descriptor: India - Remote, KA
+alteryx.wd108.myworkdayjobs.com/en-US/AlteryxCareers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 4dd9148bd1a21000afac2e8815250000
+    descriptor: Bangalore, India
+  - id: b73fe5f8dbc1012edbcbbea3760164cb
+    descriptor: India - Remote
+kla.wd1.myworkdayjobs.com/en-US/Search:
+  Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+hitachi.wd1.myworkdayjobs.com/en-US/hitachi:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+ffive.wd5.myworkdayjobs.com/en-US/f5jobs:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 7a119632acd0109fda3fc3e3ae234d40
+    descriptor: Bangalore
+  - id: dfabbb563cb701575c729ba05d012c15
+    descriptor: Bangalore (Non-SEZ)
+  - id: 2187f8e33f1601be3d7f815da1911bf3
+    descriptor: Hyderabad
+  - id: acd1747d4fef01b57ed4508f980f2174
+    descriptor: Hyderabad (SEZ)
+workday.wd5.myworkdayjobs.com/en-US/Workday:
+  Location_Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+aveva.wd3.myworkdayjobs.com/en-US/aveva_careers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: ce13858e525f100c6d0e2e0012c80000
+    descriptor: Bangalore
+  - id: ce13858e525f100c6c9322cb09e70000
+    descriptor: Bangalore, India
+  - id: ce13858e525f100c6c942d0223250000
+    descriptor: Home Office (India)
+  - id: ce13858e525f100c6d0e20bf94910000
+    descriptor: Hyderabad
+  - id: ce13858e525f100c6c8f6310fd2b0000
+    descriptor: Hyderabad, India
+trimble.wd1.myworkdayjobs.com/en-US/TrimbleCareers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+fico.wd1.myworkdayjobs.com/en-US/External:
+  locations:
+  - id: a46e175d937b106cf81e3390fa9bfb99
+    descriptor: Bangalore, India
+  - id: a46e175d937b106cf81d9489b810facc
+    descriptor: Work from Home, India
+thales.wd3.myworkdayjobs.com/en-US/Careers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 5af4f5cd8760019b90c11863372bff06
+    descriptor: Bangalore
+  - id: b0d4bf5326a11001a97cec2045620000
+    descriptor: Bangalore
+  - id: ccdc1c026c7f10015bbee61bbe1e0000
+    descriptor: Bangalore - Indraprastha
+sprinklr.wd1.myworkdayjobs.com/en-US/Careers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: c0a7c42494e701175347137b160408d5
+    descriptor: India - Karnataka - Bangalore
+amat.wd1.myworkdayjobs.com/en-US/External:
+  Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  State_Region_Province:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  locations:
+  - id: dda732f9b3a44b5dba2325b7c65805dc
+    descriptor: Bangalore,IND
+  - id: 7f68eab36efc01942d2bf2bf1e22328c
+    descriptor: Home / Mobile,India
+gartner.wd5.myworkdayjobs.com/en-US/EXT:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: a1b51111ba1201264c75202276d4a516
+    descriptor: Bangalore
+  - id: a1b51111ba12018590fbee2376d48518
+    descriptor: Remote - India
+franklintempleton.wd5.myworkdayjobs.com/en-US/Primary-External-1:
   locationCountry:
   - id: c4f78be1a8f14da0ab49ce1162348a5e
     descriptor: India
   locationRegionStateProvince:
   - id: 701eb5584934425d930bc84b9e8b04eb
     descriptor: Karnātaka
-  primaryLocation:
-  - id: 6def55b7b07e100027dbc32c89b00000
-    descriptor: IN KA BANGALORE Home Office Building 10
-  - id: 6def55b7b07e100027dba88ecd9b0000
-    descriptor: IN KA BANGALORE Home Office Building 11
-  - id: 1547bb4db472103b59b274c1a9680000
-    descriptor: IN KA BANGALORE Home Office CUMULUS
-  - id: 697b073d1cc31007bf1afe05555b0000
-    descriptor: IN KA BANGALORE Home Office PTPP1
-  - id: f1958605ffab100331602e98d4bb0000
-    descriptor: IN KA BANGALORE Home Office PTPP2
-  - id: cf29202be622100027e2ffff4a370000
-    descriptor: IN KA BANGALORE Home Office PW II
+  - id: 3cfc61cd0cf4100004b86c8483b80007
+    descriptor: Telangāna
+  locations:
+  - id: 11268efc0413010dcaeec629b800f55c
+    descriptor: Bangalore, Karnataka, India
+  - id: ffa9a12b2f6a10018fdc24a440700000
+    descriptor: FTISC-Hyderabad-F3328
+  - id: 442bd127f6be10018f38d24b9a930000
+    descriptor: FTS-Hyderabad-F3354
+  - id: 11268efc041301d5f73ee1dbe80163e8
+    descriptor: Hyderabad, Telangana, India
+  - id: 36454afe55d91026fae7fc1972f0819a
+    descriptor: IND-HYNB/1-Hyderabad
+mufgub.wd3.myworkdayjobs.com/en-US/MUFG-Careers:
+  Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  Region:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  locations:
+  - id: ce7f6e4abd611001094e794c496a0000
+    descriptor: India - Bengaluru Branch
+  - id: c373420d1af710009fbeeffc91f30000
+    descriptor: MUFG Global Service Private Ltd. - Bengaluru (BCIT)
+ntrs.wd1.myworkdayjobs.com/en-US/northerntrust:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 333f5ad2433c1000f7905b31c38a0000
+    descriptor: Bangalore, India
+fil.wd3.myworkdayjobs.com/en-US/001:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: d3c8e422f3930134a8208f97e02ea542
+    descriptor: Bangalore Office
+  - id: 8990ab54321b100107ea04a3e24a0000
+    descriptor: FIL Bengaluru Office
+broadridge.wd5.myworkdayjobs.com/en-US/Careers:
+  Location_Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  Location_Region_State_Province:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  - id: 3cfc61cd0cf4100004b86c8483b80007
+    descriptor: Telangāna
+  locations:
+  - id: ca5f893b912e1027bd691f5cead50f69
+    descriptor: Bengaluru-EPIP Industrial Area
+  - id: dfa6c462630f10386da19e845e87ce5d
+    descriptor: Hyderabad-Hi-Tec City
+empower.wd12.myworkdayjobs.com/en-US/empower:
+  Location_Country:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locationRegionStateProvince:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+synechron.wd1.myworkdayjobs.com/en-US/SynechronCareers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locationRegionStateProvince:
+  - id: 701eb5584934425d930bc84b9e8b04eb
+    descriptor: Karnātaka
+  - id: 3cfc61cd0cf4100004b86c8483b80007
+    descriptor: Telangāna
+  locations:
+  - id: b1511063925e1000acb5332c6d150000
+    descriptor: Bengaluru - BCIT
+  - id: b1511063925e1000acaafd7e653a0000
+    descriptor: Bengaluru - Bellandur (GTP)
+  - id: 4eed969426371001ea25f504d0110000
+    descriptor: Bengaluru - Client Location
+  - id: 452fb599ac5c1001e7264ee9fa300000
+    descriptor: Bengaluru - EC-2 Gateway campus
+  - id: d92589c1f92a1001ac11e31aa3610000
+    descriptor: Bengaluru - EC-2 Gateway campus
+  - id: b1511063925e1000acab13d0b0510000
+    descriptor: Bengaluru - Thanissandra (BCIT)
+  - id: c07275667c361000b087373e04040000
+    descriptor: Hyderabad  Eco Park
+  - id: b1511063925e1000acab701ce56b0000
+    descriptor: Hyderabad -Gachibowli (Orion)
+genpact.wd108.myworkdayjobs.com/en-US/External_Careers:
+  locations:
+  - id: faddece16d451000bf32840a7aae0000
+    descriptor: '1401-G-India : GF/11, Pritech Park, Bangalore'
+  - id: faddece16d451000bf4036b599930000
+    descriptor: '1401-G-India : Pritech Park 4 F, SEZ-II, Bangalore'
+  - id: faddece16d451000bf3f6b6fd3460000
+    descriptor: '1401-G-India: 1-6 FL, Surya Park, STPI, Bangalore'
+  - id: faddece16d451000bf3431453ec10000
+    descriptor: '1401-G-India: 14-45, Uppal L&R, STPI, Hyderabad'
+  - id: faddece16d451000bf3a693d530e0000
+    descriptor: '1401-G-India: 14-45, Uppal, STPI, Hyderabad'
+  - id: faddece16d451000bf39921bee4a0000
+    descriptor: '1401-G-India: 2FL, 14-46, Phoenix Tower, Uppal, Hyderabad'
+  - id: faddece16d451000bf39602074150000
+    descriptor: '1401-G-India: 5A, FF, Pritech Park Tower-5, Bangalore'
+  - id: faddece16d451000bf32ffeb20950000
+    descriptor: '1401-G-India: DSL Abacus IT Park, Uppal, Hyderabad'
+  - id: faddece16d451000bf3be21bae0f0000
+    descriptor: '1401-G-India: Floor 1 to 12, Hafeezpet Phoenix, Hyderabad'
+  - id: faddece16d451000bf335d4335830000
+    descriptor: 1401-G-India:Pritech Park, Sy No.51 to 64/4,hobli, Bangalore
+  - id: b1404e288dc71000db08962858cc0000
+    descriptor: '1401-GIPL: Centaurus by Phoenix, Floor 1 Hyderabad'
+  - id: faddece16d451000bf3d37688ca50000
+    descriptor: '1401-GIPL: Prestige Technology Park IV, Bangalore'
+  - id: faddece16d451000bf36e76b83520000
+    descriptor: '1411-HS SIPL: Prestige Technology Park, Bangalore'
+  - id: faddece16d451000bf3799e932a70000
+    descriptor: '1415-G ERC: Uppal, Habsiguda, Hyderabad, Telangana'
+  - id: faddece16d451000bf382b1b6ada0000
+    descriptor: '1415-GERC: Prestige Technology Park IV, Bangalore'
+  - id: faddece16d451000bf32e00cff8d0000
+    descriptor: '1417-RP-IDPL: 3rd Floor, 99 Surya Park, Bangalore'
+  - id: faddece16d451000bc25895401c30000
+    descriptor: Bengaluru JP
+  - id: faddece16d451000bc2520030d060000
+    descriptor: Hyderabad JP
+fractal.wd1.myworkdayjobs.com/en-US/Careers:
+  locations:
+  - id: 4fedd31659ec01018833637cbf900000
+    descriptor: Bengaluru
+  - id: 3b3fb1d62c071000e2a0f48656560000
+    descriptor: Hyderabad
+wk.wd3.myworkdayjobs.com/en-US/External:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+bdx.wd1.myworkdayjobs.com/en-IN/EXTERNAL_CAREER_SITE_INDIA:
+  locations:
+  - id: 79dd1be3068810edd701b00bd00668a4
+    descriptor: IND Bengaluru - Cornich Al-Latheef
+  - id: 7c5b5eab06b3013bbb0c856479234526
+    descriptor: IND Bengaluru - Technology Campus
+  - id: b6e62d886a2b012c7e105f3dc101958b
+    descriptor: IND Hyderabad - Hyderabad DC

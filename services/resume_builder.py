@@ -36,8 +36,8 @@ You will receive a base LaTeX resume and a job description. Make MINIMAL, surgic
 
 1. **Summary**: Rewrite to align with the JD, but keep the original tone and structure. Mention key skills/technologies from the JD that the candidate actually has. Keep to 2-3 sentences.
 2. **Technical Skills**: Reorder so JD-relevant skills appear first. If the candidate clearly has a skill from the JD (proven by their projects/experience) but it's missing, add it. Remove nothing.
-3. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
-4. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
+3. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
+4. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
 5. **Education & Additional**: Copy EXACTLY as-is. Zero changes.
 
 ## Critical constraints
@@ -63,10 +63,9 @@ _EXPERIENCE_BOOST_PROMPT = """
 
 ## Experience Enhancement (apply ONLY if the candidate's Amazon experience aligns with the target JD)
 
-If the Amazon "Senior Selling Partner Support Associate" experience section is relevant to this job:
+If the Amazon "SPS Associate" experience section is relevant to this job:
 
-1. **Remove** the "SnipURL" project entirely (the Java/Spring Boot URL shortener project).
-2. **Add 2-3 bullet points** to the Amazon Experience section. Pick the most JD-relevant items from this list:
+1. **Add 2-3 bullet points** to the Amazon Experience section. Pick the most JD-relevant items from this list:
 
 - Resolved 50+ daily seller escalations via phone and email, maintaining 95%+ first-contact resolution rate
 - Identified and triaged systemic defects affecting seller workflows, driving process improvements that reduced repeat contacts by 20%
@@ -79,9 +78,10 @@ If the Amazon "Senior Selling Partner Support Associate" experience section is r
 - Acted as point of escalation for complex seller account and transaction issues
 - Drove seller satisfaction improvements through proactive outreach and chronic issue resolution
 
+2. **Reorder experience entries**: Move the Amazon entry ABOVE the Upwork entry within the Experience section.
 3. **Reorder sections**: Move the Experience section BEFORE Technical Skills and Projects, so the order becomes: Summary → Experience → Technical Skills → Projects → Education/Achievements.
 
-If the Amazon experience is NOT relevant to the JD, ignore this section entirely and keep the resume as-is (including SnipURL and original section order).
+If the Amazon experience is NOT relevant to the JD, ignore this section entirely and keep the resume as-is (original section and experience order).
 """
 
 

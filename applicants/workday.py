@@ -300,7 +300,7 @@ class WorkdayApplicant:
             self._ensure_signed_in()
 
             # Step 2: Click Apply
-            self._click_apply_button()
+            self._click_apply_button(job["title"])
 
             # Step 3: Fill the multi-step application form
             self._fill_application(job, pdf_path, resume_data)
@@ -334,7 +334,7 @@ class WorkdayApplicant:
 
     # ── Step 1: Click Apply ────────────────────────────────────
 
-    def _click_apply_button(self):
+    def _click_apply_button(self, job_title: str):
         """Find and click the Apply button, then select 'Autofill with Resume'.
 
         If a previous unsubmitted application exists (Continue Application),
@@ -348,7 +348,7 @@ class WorkdayApplicant:
         # If "Continue Application" exists, delete existing application first
         if self._page.query_selector(_SEL["continue_btn"]):
             logger.info("Existing application found — deleting before re-applying")
-            self._delete_existing_application()
+            self._delete_existing_application(job_title)
             # Go back to job page and reload to get fresh state
             self._page.go_back()
             self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
@@ -363,9 +363,9 @@ class WorkdayApplicant:
         autofill_btn.click()
         self._page.wait_for_load_state("domcontentloaded")
 
-    def _delete_existing_application(self):
-        """Navigate to Candidate Home and delete the existing application."""
-        logger.info("Navigating to Candidate Home")
+    def _delete_existing_application(self, job_title: str):
+        """Navigate to Candidate Home and delete the application for the given job title."""
+        logger.info("Navigating to Candidate Home to delete application for: %s", job_title)
         candidate_home = self._page.query_selector(_SEL["candidate_home"])
         if candidate_home:
             candidate_home.click()
@@ -376,9 +376,29 @@ class WorkdayApplicant:
             self._page.click('[aria-label="Candidate Home"]')
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
 
-        # Click action menu (three dots) on the first application row
+        # Find the application row matching this job title
         self._page.wait_for_selector(_SEL["action_menu"], timeout=_TIMEOUT)
-        self._page.click(_SEL["action_menu"])
+        rows = self._page.query_selector_all('[data-automation-id="applicationRowItem"], [data-automation-id="jobItem"], tr:has([data-automation-id="actionMenuTarget"])')
+
+        target_row = None
+        for row in rows:
+            row_text = row.inner_text()
+            if job_title.lower() in row_text.lower():
+                target_row = row
+                break
+
+        if not target_row:
+            raise WorkdayApplyError(
+                f"Could not find application row for '{job_title}' on Candidate Home"
+            )
+
+        # Click the action menu within the matching row
+        action_btn = target_row.query_selector(_SEL["action_menu"])
+        if not action_btn:
+            raise WorkdayApplyError(
+                f"Found application row for '{job_title}' but no action menu button in it"
+            )
+        action_btn.click()
 
         # Click "Delete Application"
         self._page.wait_for_selector(_SEL["delete_app"], timeout=_TIMEOUT)
@@ -390,7 +410,7 @@ class WorkdayApplicant:
             confirm_btn.click()
 
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
-        logger.info("Existing application deleted")
+        logger.info("Deleted application for: %s", job_title)
 
     def _auto_sign_in(self, creds: dict):
         """Automatically sign in using stored credentials."""

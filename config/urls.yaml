@@ -67,6 +67,42 @@ workday | https://fox.wd1.myworkdayjobs.com/Domestic
 workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
 workday | https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal
 
+# ── Additional Workday portals — API-verified 2026-06-29 ──
+
+# Tech / Software / Cybersecurity (11-944 India jobs)
+workday | https://autodesk.wd1.myworkdayjobs.com/en-US/Ext
+workday | https://cadence.wd1.myworkdayjobs.com/en-US/External_Careers
+workday | https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers
+workday | https://alteryx.wd108.myworkdayjobs.com/en-US/AlteryxCareers
+workday | https://kla.wd1.myworkdayjobs.com/en-US/Search
+workday | https://hitachi.wd1.myworkdayjobs.com/en-US/hitachi
+workday | https://ffive.wd5.myworkdayjobs.com/en-US/f5jobs
+workday | https://workday.wd5.myworkdayjobs.com/en-US/Workday
+workday | https://aveva.wd3.myworkdayjobs.com/en-US/aveva_careers
+workday | https://trimble.wd1.myworkdayjobs.com/en-US/TrimbleCareers
+workday | https://fico.wd1.myworkdayjobs.com/en-US/External
+workday | https://thales.wd3.myworkdayjobs.com/en-US/Careers
+workday | https://sprinklr.wd1.myworkdayjobs.com/en-US/Careers
+workday | https://amat.wd1.myworkdayjobs.com/en-US/External
+workday | https://gartner.wd5.myworkdayjobs.com/en-US/EXT
+
+# Financial Services / Fintech (19-176 India jobs)
+workday | https://franklintempleton.wd5.myworkdayjobs.com/en-US/Primary-External-1
+workday | https://mufgub.wd3.myworkdayjobs.com/en-US/MUFG-Careers
+workday | https://ntrs.wd1.myworkdayjobs.com/en-US/northerntrust
+workday | https://fil.wd3.myworkdayjobs.com/en-US/001
+workday | https://broadridge.wd5.myworkdayjobs.com/en-US/Careers
+workday | https://empower.wd12.myworkdayjobs.com/en-US/empower
+workday | https://synechron.wd1.myworkdayjobs.com/en-US/SynechronCareers
+
+# IT Services / Analytics (119-2000 India jobs)
+workday | https://genpact.wd108.myworkdayjobs.com/en-US/External_Careers
+workday | https://fractal.wd1.myworkdayjobs.com/en-US/Careers
+workday | https://wk.wd3.myworkdayjobs.com/en-US/External
+
+# Healthcare / MedTech (35 India jobs)
+workday | https://bdx.wd1.myworkdayjobs.com/en-IN/EXTERNAL_CAREER_SITE_INDIA
+
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 
 # Cognizant (XML feed — all India jobs, filtered to Hyd/Blr in code)

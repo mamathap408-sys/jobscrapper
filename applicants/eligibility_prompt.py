@@ -16,9 +16,10 @@ ELIGIBILITY CRITERIA — The application MUST satisfy ALL of the following to be
    - Address is complete (street, city, postal code, country)
 
 2. WORK EXPERIENCE
-   - At least one work experience entry is present
-   - Job title, company name, and dates are filled
-   - Role description is not empty
+   - ALL work experience entries from the candidate's profile must be present (currently: Upwork and Amazon)
+   - Job title, company name, and dates are filled for each entry
+   - Role description is not empty for each entry
+   - If any work experience from the candidate's profile is missing on the review page, flag as not_eligible
 
 3. EDUCATION
    - At least one education entry is present
