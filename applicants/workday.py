@@ -1055,10 +1055,19 @@ class WorkdayApplicant:
             self._fill_experience_field("location", exp["location"], scope=panel)
 
         # Checkbox: currently work here
-        if exp.get("currentlyWorkHere"):
-            checkbox = panel.query_selector(_SEL["exp_currently_here"])
-            if checkbox and checkbox.get_attribute("aria-checked") != "true":
+        checkbox = panel.query_selector(_SEL["exp_currently_here"])
+        if checkbox:
+            is_checked = checkbox.get_attribute("aria-checked") == "true"
+            if exp.get("currentlyWorkHere") and not is_checked:
                 checkbox.click()
+                self._page.wait_for_function(
+                    '(el) => el.getAttribute("aria-checked") === "true"', arg=checkbox
+                )
+            elif not exp.get("currentlyWorkHere") and is_checked:
+                checkbox.click()
+                self._page.wait_for_function(
+                    '(el) => el.getAttribute("aria-checked") === "false"', arg=checkbox
+                )
 
         # Date fields
         self._fill_date_field("startDate", exp.get("startDate", ""), scope=panel)
