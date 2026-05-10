@@ -5,9 +5,10 @@ Standalone script to automatically apply to job postings.
 Detects the correct applicant (Workday, etc.) from the job URL.
 
 Usage:
-    python apply.py                     # Apply to all qualifying jobs (default)
-    python apply.py --auto              # Same as above
-    python apply.py --job-id <id>       # Apply to one specific job by DB job_id
+    python apply.py                         # Apply to all qualifying jobs (default)
+    python apply.py --auto                  # Same as above
+    python apply.py --job-id <id>           # Apply to one specific job by DB job_id
+    python apply.py --company genpact       # Apply only to jobs at a specific company
 """
 
 import argparse
@@ -402,6 +403,7 @@ def main():
     group.add_argument("--job-id", help="Apply to a specific job by DB job_id")
     group.add_argument("--auto", action="store_true", default=True,
                        help="Apply to all qualifying jobs (default when no args given)")
+    parser.add_argument("--company", help="Filter jobs to a specific company (case-insensitive substring match)")
     args = parser.parse_args()
     if args.job_id:
         args.auto = False
@@ -417,6 +419,15 @@ def main():
         jobs = _load_jobs(db, args, threshold)
         if not jobs:
             return
+
+        # Company filter
+        if args.company:
+            needle = args.company.lower()
+            jobs = [j for j in jobs if needle in j["company"].lower()]
+            if not jobs:
+                print(f"No jobs found for company matching '{args.company}'.")
+                return
+            logger.info("Company filter '%s': %d job(s)", args.company, len(jobs))
 
         # Split: already-pending (skip filters) vs new (need full pipeline)
         already_pending = []

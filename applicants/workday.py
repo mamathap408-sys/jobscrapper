@@ -640,7 +640,8 @@ class WorkdayApplicant:
     def _fill_remaining_fields(self, job: dict):
         """Fill any unfilled fields on the experience page using known answers + AI fallback."""
         fields = self._scan_page_fields(scope=self._page)
-        unfilled = [f for f in fields if not self._is_field_filled(f)]
+        unfilled = [f for f in fields if not self._is_field_filled(f)
+                    and f["field_name"] != "currentlyWorkHere"]
         if not unfilled:
             return
 
@@ -940,11 +941,7 @@ class WorkdayApplicant:
         search_input.fill("")
         search_input.type(skill_name)
         search_input.press("Enter")
-        # Wait for real search results (multiSelectHeader), not the instant "No Items." placeholder
-        try:
-            self._page.wait_for_selector('[data-automation-id="multiSelectHeader"]', timeout=5000)
-        except Exception:
-            pass
+        time.sleep(3)
         active_list = self._page.query_selector('[data-automation-id="activeListContainer"]')
         search_scope = active_list if active_list else container
 
@@ -1068,6 +1065,7 @@ class WorkdayApplicant:
                 self._page.wait_for_function(
                     '(el) => el.getAttribute("aria-checked") === "false"', arg=checkbox
                 )
+            time.sleep(2)
 
         # Date fields
         self._fill_date_field("startDate", exp.get("startDate", ""), scope=panel)
