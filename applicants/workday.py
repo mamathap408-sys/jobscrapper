@@ -617,11 +617,17 @@ class WorkdayApplicant:
         lang_section = self._page.query_selector('[aria-labelledby="Languages-section"]')
         if lang_section:
             languages = self._workday_fields.get("languages", [])
+            existing_lang_panel = self._get_last_panel("Languages")
+            has_existing_lang = existing_lang_panel and existing_lang_panel.query_selector('[data-automation-id*="formField"]')
             for i, lang in enumerate(languages):
                 logger.info("  Adding language %d: %s", i + 1, lang.get("language", ""))
-                self._click_section_add("Languages")
-                time.sleep(1)
-                panel = self._get_last_panel("Languages")
+                if i == 0 and has_existing_lang:
+                    logger.info("  Filling existing language panel (no delete button)")
+                    panel = existing_lang_panel
+                else:
+                    self._click_section_add("Languages")
+                    time.sleep(1)
+                    panel = self._get_last_panel("Languages")
                 self._fill_section_panel(panel, lang)
         else:
             logger.info("  No Languages section on this portal — skipping")
@@ -1600,7 +1606,7 @@ class WorkdayApplicant:
             field["element"].fill(fill_value)
 
         elif input_type == "dropdown":
-            self._select_from_dropdown(field, value)
+            self._select_from_dropdown(field, value, substring_match=True)
 
         elif input_type == "multiselect":
             self._select_from_searchable(field, value)
@@ -1686,9 +1692,9 @@ class WorkdayApplicant:
                     f"No matching option for dropdown '{field['field_name']}': {candidates}. Available: {available}"
                 )
 
-            self._page.wait_for_selector(
-                _SEL["dropdown_listbox"], state="hidden", timeout=_TIMEOUT
-            )
+            # Wait for THIS specific listbox to close (not any listbox on the page,
+            # which can match unrelated activeListContainer elements still open)
+            listbox.wait_for_element_state("hidden", timeout=_TIMEOUT)
             time.sleep(0.5)
 
             # Verify the selection stuck by checking button value
@@ -1777,6 +1783,7 @@ IMPORTANT:
 - For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
 - Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
 - For any visa/sponsorship question: the applicant is an Indian citizen working in India and does NOT require any visa sponsorship. Always answer "No" to sponsorship questions.
+- For date fields, always return the date in MM/DD/YYYY format (e.g. "07/14/2025"). Never use ISO format (YYYY-MM-DD) or any other format.
 
 KNOWN WORKDAY BUGS:
 - Language proficiency sections often include garbage/undefined dropdown fields with labels like "4 - Other", "5 - Unknown", "undefined", or numbered labels that make no sense. These are mandatory but meaningless. For these, always select "Fluent" (or the highest proficiency option available). Never select placeholder values like "Select One" for these fields. Set confidence to 8.
