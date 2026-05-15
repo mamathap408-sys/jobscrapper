@@ -185,6 +185,7 @@ class WorkdayApplicant:
             raise WorkdayApplyError("'education' section missing from workday_answers.yaml")
         self._confidence_threshold = self._apply_cfg.get("answer_confidence_threshold", 7)
         self._test_mode = self._apply_cfg.get("test_mode", False)
+        self._skip_no_credentials = self._apply_cfg.get("skip_no_credentials", False)
         self._apply_email = answers.get("workday_account", {}).get("email", "")
 
         self._answer_reasoning: str = ""
@@ -326,6 +327,8 @@ class WorkdayApplicant:
         creds = self._credentials.get(self._current_tenant)
         if creds:
             self._auto_sign_in(creds)
+        elif self._skip_no_credentials:
+            raise WorkdayApplyError(f"No credentials for tenant '{self._current_tenant}' — skipping (skip_no_credentials=true)")
         else:
             logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
             input("Press Enter after you have signed in manually...")
@@ -602,13 +605,13 @@ class WorkdayApplicant:
             has_existing = existing_panel and existing_panel.query_selector('[data-automation-id*="formField"]')
             if has_existing:
                 logger.info("  Filling existing education panel (no delete button)")
-                self._fill_section_panel(existing_panel, edu)
+                panel = existing_panel
             else:
                 logger.info("  Adding education entry")
                 self._click_section_add("Education")
                 time.sleep(1)
                 panel = self._get_last_panel("Education")
-                self._fill_section_panel(panel, edu)
+            self._fill_section_panel(panel, edu)
         else:
             logger.info("  No Education section on this portal — skipping")
             self._skipped_sections.append("Education")
@@ -628,7 +631,7 @@ class WorkdayApplicant:
                     self._click_section_add("Languages")
                     time.sleep(1)
                     panel = self._get_last_panel("Languages")
-                self._fill_section_panel(panel, lang)
+                self._fill_section_panel(panel, lang, substring_match=True)
         else:
             logger.info("  No Languages section on this portal — skipping")
 
@@ -1016,7 +1019,7 @@ class WorkdayApplicant:
         panels = section.query_selector_all('[role="group"][aria-labelledby*="-panel"]')
         return panels[-1] if panels else section
 
-    def _fill_section_panel(self, panel, answers: dict):
+    def _fill_section_panel(self, panel, answers: dict, substring_match: bool = False):
         """Dynamically scan fields in a panel and fill from answers dict."""
         fields = self._scan_page_fields(scope=panel)
         logger.info("    Panel has %d fillable field(s)", len(fields))
@@ -1026,7 +1029,7 @@ class WorkdayApplicant:
             value = self._resolve_panel_value(name, field["label"], answers)
             if value is not None:
                 logger.info("    Filling '%s' (%s) → '%s'", name, field["label"], str(value)[:30])
-                self._fill_field_by_type(field, value)
+                self._fill_field_by_type(field, value, substring_match=substring_match)
             elif field["required"]:
                 logger.warning("    No answer for required field '%s' (%s)", name, field["label"])
             else:
@@ -1084,81 +1087,6 @@ class WorkdayApplicant:
             if desc:
                 desc.fill(exp["roleDescription"])
 
-    def _fill_education_entry(self, edu: dict):
-        """Fill a single education entry after clicking Add.
-
-        Fields: school (searchable multiselect), degree (dropdown),
-        fieldOfStudy (searchable multiselect), dates.
-        """
-        panel = self._get_last_panel("Education")
-
-        # School — searchable multiselect, try each name in priority list
-        if edu.get("school"):
-            self._select_from_searchable("school", edu["school"])
-
-        # Degree — custom dropdown
-        if edu.get("degree"):
-            container = self._page.query_selector(_SEL["exp_degree"])
-            if container:
-                dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
-                if dropdown_btn:
-                    field = {
-                        "field_name": "degree",
-                        "element": dropdown_btn,
-                    }
-                    self._select_from_dropdown(field, edu["degree"])
-
-        # Field of Study — searchable multiselect
-        if edu.get("fieldOfStudy"):
-            self._select_from_searchable("fieldOfStudy", edu["fieldOfStudy"])
-
-        # GPA
-        if edu.get("gradeAverage"):
-            self._fill_experience_field("gradeAverage", edu["gradeAverage"], scope=panel)
-
-        # Date fields
-        if edu.get("startDate"):
-            self._fill_date_field("startDate", edu["startDate"], scope=panel)
-        if edu.get("endDate"):
-            self._fill_date_field("endDate", edu["endDate"], scope=panel)
-
-    def _fill_language_entry(self, lang: dict):
-        """Fill a single language entry after clicking Add."""
-        # Find the last language panel (the one just added)
-        panels = self._page.query_selector_all(_SEL["lang_panels"])
-        if not panels:
-            raise WorkdayApplyError("No language panel found after clicking Add")
-        panel = panels[-1]
-
-        # Language — dropdown (scoped to panel)
-        if lang.get("language"):
-            container = panel.query_selector(_SEL["exp_language"])
-            if container:
-                dropdown_btn = container.query_selector(_SEL["dropdown_btn"])
-                if dropdown_btn:
-                    field = {"field_name": "language", "element": dropdown_btn}
-                    self._select_from_dropdown(field, lang["language"])
-
-        # Native checkbox (scoped to panel)
-        if lang.get("native"):
-            checkbox = panel.query_selector(_SEL["exp_native"])
-            if checkbox and checkbox.get_attribute("aria-checked") != "true":
-                checkbox.click()
-
-        # Reading/Speaking/Writing — find dropdowns by label within panel
-        for proficiency in ["Reading", "Speaking", "Writing"]:
-            value = lang.get(proficiency.lower())
-            if not value:
-                continue
-            containers = panel.query_selector_all(_SEL["form_field_all"])
-            for c in containers:
-                label_el = c.query_selector("label")
-                if label_el and label_el.inner_text().strip().rstrip("*").strip() == proficiency:
-                    btn = c.query_selector(_SEL["dropdown_btn"])
-                    if btn:
-                        field = {"field_name": proficiency.lower(), "element": btn}
-                        self._select_from_dropdown(field, value, substring_match=True)
-                    break
 
     def _select_from_searchable(self, field, value):
         """Select a value from a type-to-search multiselect (server-filtered results).
@@ -1592,7 +1520,7 @@ class WorkdayApplicant:
             return True
         return False
 
-    def _fill_field_by_type(self, field: dict, value):
+    def _fill_field_by_type(self, field: dict, value, substring_match: bool = False):
         """Fill a field based on its input type."""
         input_type = field["input_type"]
 
@@ -1606,7 +1534,7 @@ class WorkdayApplicant:
             field["element"].fill(fill_value)
 
         elif input_type == "dropdown":
-            self._select_from_dropdown(field, value, substring_match=True)
+            self._select_from_dropdown(field, value, substring_match=substring_match)
 
         elif input_type == "multiselect":
             self._select_from_searchable(field, value)
