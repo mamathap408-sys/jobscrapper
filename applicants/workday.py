@@ -367,53 +367,71 @@ class WorkdayApplicant:
         self._page.wait_for_load_state("domcontentloaded")
 
     def _delete_existing_application(self, job_title: str):
-        """Navigate to Candidate Home and delete the application for the given job title."""
-        logger.info("Navigating to Candidate Home to delete application for: %s", job_title)
+        """Navigate to Candidate Home and delete all pending (non-submitted) applications."""
+        logger.info("Navigating to Candidate Home to delete pending applications")
+        self._go_to_candidate_home()
+        try:
+            self._page.wait_for_selector(_SEL["action_menu"], timeout=_TIMEOUT)
+        except PlaywrightTimeout:
+            logger.info("No applications found on Candidate Home")
+            return
+
+        deleted = 0
+        while True:
+            action_btns = self._page.query_selector_all(_SEL["action_menu"])
+            if not action_btns:
+                break
+
+            found_pending = False
+            for btn in action_btns:
+                btn.click()
+                time.sleep(0.5)
+
+                delete_opt = self._page.query_selector(_SEL["delete_app"])
+                if delete_opt:
+                    delete_opt.click()
+                    time.sleep(1)
+                    confirm_btn = self._page.query_selector(_SEL["confirm_button"])
+                    if confirm_btn:
+                        confirm_btn.click()
+                    self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+                    try:
+                        self._page.wait_for_selector(
+                            '[data-behavior-click-outside-close="topmost"]',
+                            state="hidden", timeout=5_000
+                        )
+                    except PlaywrightTimeout:
+                        pass
+                    time.sleep(1)
+                    deleted += 1
+                    logger.info("Deleted pending application %d", deleted)
+                    # Re-navigate to Candidate Home (Workday redirects after delete)
+                    self._go_to_candidate_home()
+                    try:
+                        self._page.wait_for_selector(_SEL["action_menu"], timeout=5_000)
+                    except PlaywrightTimeout:
+                        pass
+                    found_pending = True
+                    break
+                else:
+                    self._page.keyboard.press("Escape")
+                    time.sleep(0.3)
+
+            if not found_pending:
+                break
+
+        logger.info("Deleted %d pending application(s) total", deleted)
+
+    def _go_to_candidate_home(self):
+        """Navigate to Candidate Home page."""
         candidate_home = self._page.query_selector(_SEL["candidate_home"])
         if candidate_home:
             candidate_home.click()
         else:
-            # Some portals hide Candidate Home behind the account menu
             self._page.click("#accountSettingsButton")
             self._page.wait_for_selector('[aria-label="Candidate Home"]', timeout=_TIMEOUT)
             self._page.click('[aria-label="Candidate Home"]')
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
-
-        # Find the application row matching this job title
-        self._page.wait_for_selector(_SEL["action_menu"], timeout=_TIMEOUT)
-        rows = self._page.query_selector_all('[data-automation-id="applicationRowItem"], [data-automation-id="jobItem"], tr:has([data-automation-id="actionMenuTarget"])')
-
-        target_row = None
-        for row in rows:
-            row_text = row.inner_text()
-            if job_title.lower() in row_text.lower():
-                target_row = row
-                break
-
-        if not target_row:
-            raise WorkdayApplyError(
-                f"Could not find application row for '{job_title}' on Candidate Home"
-            )
-
-        # Click the action menu within the matching row
-        action_btn = target_row.query_selector(_SEL["action_menu"])
-        if not action_btn:
-            raise WorkdayApplyError(
-                f"Found application row for '{job_title}' but no action menu button in it"
-            )
-        action_btn.click()
-
-        # Click "Delete Application"
-        self._page.wait_for_selector(_SEL["delete_app"], timeout=_TIMEOUT)
-        self._page.click(_SEL["delete_app"])
-
-        # Handle confirmation dialog if any
-        confirm_btn = self._page.query_selector(_SEL["confirm_button"])
-        if confirm_btn:
-            confirm_btn.click()
-
-        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
-        logger.info("Deleted application for: %s", job_title)
 
     def _auto_sign_in(self, creds: dict):
         """Automatically sign in using stored credentials."""
@@ -1009,6 +1027,7 @@ class WorkdayApplicant:
             raise WorkdayApplyError(f"Add button not found in section: '{section_id}'")
         add_btn.click()
         self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        self._page.wait_for_timeout(1000)  # give DOM time to render new panel
         return True
 
     def _get_last_panel(self, section_id: str):
@@ -1711,6 +1730,7 @@ IMPORTANT:
 - For optional fields: if you don't have enough information to answer or the field is not relevant, set answer to "SKIP" with confidence 10. Do NOT fail on optional fields.
 - Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
 - For any visa/sponsorship question: the applicant is an Indian citizen working in India and does NOT require any visa sponsorship. Always answer "No" to sponsorship questions.
+- For any question asking whether the applicant meets or has the basic/minimum job requirements (e.g. "Do you have at least the basic job requirements..."): always answer "Yes" with confidence 10.
 - For date fields, always return the date in MM/DD/YYYY format (e.g. "07/14/2025"). Never use ISO format (YYYY-MM-DD) or any other format.
 
 KNOWN WORKDAY BUGS:

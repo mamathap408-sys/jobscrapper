@@ -387,8 +387,8 @@ def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict
                     logger.error("Failed [%d/%d] %s at %s: %s",
                                  job_num, total, job["title"], job["company"], e)
 
-                if i < len(type_jobs) - 1:
-                    time.sleep(delay)
+
+                time.sleep(delay)
         finally:
             applicant.close()
 
@@ -404,6 +404,7 @@ def main():
     group.add_argument("--auto", action="store_true", default=True,
                        help="Apply to all qualifying jobs (default when no args given)")
     parser.add_argument("--company", help="Filter jobs to a specific company (case-insensitive substring match)")
+    parser.add_argument("--portal", help="Filter jobs by applicant portal type (e.g. workday, successfactors)")
     args = parser.parse_args()
     if args.job_id:
         args.auto = False
@@ -463,6 +464,15 @@ def main():
             atype = detect_applicant_type(job["url"])
             if atype:
                 jobs_by_type[atype].append(job)
+
+        # Portal filter
+        if args.portal:
+            needle = args.portal.lower()
+            jobs_by_type = {k: v for k, v in jobs_by_type.items() if needle in k.lower()}
+            if not jobs_by_type:
+                print(f"No jobs found for portal matching '{args.portal}'.")
+                return
+            logger.info("Portal filter '%s': %d type(s)", args.portal, len(jobs_by_type))
 
         # Print summary
         total = sum(len(jl) for jl in jobs_by_type.values())

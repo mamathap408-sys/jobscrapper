@@ -259,8 +259,6 @@ class WorkdayScraper(BaseScraper):
             location = item.get("locationsText", "")
             posted_date = item.get("postedOn", "")
 
-            # Use subsidiary name (e.g., "Pall", "Cytiva") if available, else fallback
-            sub_company = bullet_fields[1] if len(bullet_fields) > 1 else company
 
             job_url = f"{url_base}{external_path}"
 
@@ -271,7 +269,7 @@ class WorkdayScraper(BaseScraper):
             jobs.append(JobPosting(
                 job_id=job_id,
                 title=title,
-                company=sub_company,
+                company=company,
                 location=location,
                 description="",  # Filled later by fetch_job_detail()
                 url=job_url,

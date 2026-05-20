@@ -12,14 +12,19 @@ To add a new applicant type:
 """
 
 from applicants.workday import WorkdayApplicant
+from applicants.successfactors import SuccessFactorsApplicant
 
 APPLICANT_REGISTRY: dict[str, type] = {
     "workday": WorkdayApplicant,
+    "successfactors": SuccessFactorsApplicant,
 }
 
 # URL substring → applicant type. Checked in order.
 _URL_PATTERNS: list[tuple[str, str]] = [
     ("myworkdayjobs.com", "workday"),
+    ("careers.hcltech.com", "successfactors"),
+    ("careers.wipro.com", "successfactors"),
+    ("careers.capgemini.com", "successfactors"),
 ]
 
 
