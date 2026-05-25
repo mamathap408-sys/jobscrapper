@@ -351,11 +351,9 @@ class WorkdayApplicant:
         # If "Continue Application" exists, delete existing application first
         if self._page.query_selector(_SEL["continue_btn"]):
             logger.info("Existing application found — deleting before re-applying")
+            job_url = self._page.url
             self._delete_existing_application(job_title)
-            # Go back to job page and reload to get fresh state
-            self._page.go_back()
-            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
-            self._page.reload(wait_until="networkidle")
+            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
             self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
 
         self._page.query_selector(_SEL["apply_btn"]).click()
@@ -383,7 +381,7 @@ class WorkdayApplicant:
                 break
 
             found_pending = False
-            for btn in action_btns:
+            for i, btn in enumerate(action_btns):
                 btn.click()
                 time.sleep(0.5)
 
@@ -405,17 +403,17 @@ class WorkdayApplicant:
                     time.sleep(1)
                     deleted += 1
                     logger.info("Deleted pending application %d", deleted)
-                    # Re-navigate to Candidate Home (Workday redirects after delete)
                     self._go_to_candidate_home()
                     try:
                         self._page.wait_for_selector(_SEL["action_menu"], timeout=5_000)
+                        found_pending = True
                     except PlaywrightTimeout:
-                        pass
-                    found_pending = True
+                        logger.info("No more applications on Candidate Home")
                     break
                 else:
+                    # First non-deletable app means all remaining are submitted — done
                     self._page.keyboard.press("Escape")
-                    time.sleep(0.3)
+                    break
 
             if not found_pending:
                 break
@@ -1603,8 +1601,11 @@ class WorkdayApplicant:
             if self._page.query_selector(_SEL["dropdown_listbox"]):
                 self._page.keyboard.press("Tab")
             btn.click()
-            # Wait for dropdown popup listbox and real options to load
-            listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=_TIMEOUT)
+            # Wait for dropdown popup listbox — retry click if it doesn't appear
+            try:
+                listbox = self._page.wait_for_selector(_SEL["dropdown_listbox"], timeout=5_000)
+            except PlaywrightTimeout:
+                continue
             self._page.wait_for_selector(_SEL["dropdown_real_option"], timeout=_TIMEOUT)
             # Collect available options
             options = listbox.query_selector_all(_SEL["dropdown_option"])
