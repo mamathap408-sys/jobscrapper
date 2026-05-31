@@ -138,19 +138,23 @@ schedule:
 # Auto-apply settings (used by apply.py)
 apply:
   headless: false                    # true = invisible browser, false = visible (default)
-  test_mode: true                    # true = stop before final submit (dry run)
+  test_mode: false                    # true = stop before final submit (dry run)
   apply_threshold: 7                 # only auto-apply to jobs >= this score
   answer_confidence_threshold: 7     # LLM confidence floor (1-10); below = skip job
   delay_between_jobs_seconds: 10     # polite delay between applications
   resume_email: "xxxx"  # email on the original resume; if different from personal.email, resume is recompiled with the apply email
   blacklist_companies:               # skip auto-apply for these companies (case-insensitive)
     - "visa"
+  skip_no_credentials: false          # skip jobs for portals without saved credentials (no manual sign-in prompt)
+#  blacklist_companies:               # skip auto-apply for these companies (case-insensitive)
+#    - "visa"
   skip_roles:                          # LLM-based role filter (batched before applying)
     - role: "Resolution Coordinator"
       company: "Walmart"
       reason: "too low salary"
       instructions: "Only skip entry-level 'Resolution Coordinator'. Do NOT skip Sr. Resolution Coordinator, Senior Resolution Coordinator, Lead Resolution Coordinator — those are valid higher-paying roles."
   regenerate_resumes: true             # regenerate resumes before applying (overwrites existing)
+  resume_freshness_days: 1             # skip regeneration if resume was generated within this many days
   skills_min: 8                      # minimum skills to fill (keep retrying until this)
   skills_max: 20                     # ask LLM for this many candidates per round
   skills_retry_count: 3              # max LLM back-and-forth attempts for alternatives

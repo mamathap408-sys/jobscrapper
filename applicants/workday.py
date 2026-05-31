@@ -33,6 +33,7 @@ from playwright.sync_api import sync_playwright, Page, TimeoutError as Playwrigh
 
 from services.genai_client import GenAIClient, ChatSession
 from applicants.eligibility_prompt import ELIGIBILITY_CRITERIA, ELIGIBILITY_PROMPT_TEMPLATE
+from applicants.utils import retry
 
 logger = logging.getLogger(__name__)
 
@@ -436,7 +437,10 @@ class WorkdayApplicant:
         logger.info("Auto sign-in for tenant: %s", self._current_tenant)
 
         # Some portals show social sign-in options first; click "Sign in with email"
-        email_btn = self._page.query_selector('[data-automation-id="SignInWithEmailButton"]')
+        try:
+            email_btn = self._page.wait_for_selector('[data-automation-id="SignInWithEmailButton"]', timeout=5000)
+        except Exception:
+            email_btn = None
         if email_btn:
             email_btn.click()
             self._page.wait_for_selector(_SEL["auth_email"], timeout=_TIMEOUT)
@@ -627,7 +631,7 @@ class WorkdayApplicant:
                 self._click_section_add("Education")
                 time.sleep(1)
                 panel = self._get_last_panel("Education")
-            self._fill_section_panel(panel, edu)
+            self._fill_section_panel(panel, edu, require_exact_match=True)
         else:
             logger.info("  No Education section on this portal — skipping")
             self._skipped_sections.append("Education")
@@ -657,7 +661,14 @@ class WorkdayApplicant:
             self._fill_skills_with_llm(skills_container, job, pdf_path)
         resume_uploaded = self._page.query_selector(_SEL["resume_uploaded"])
         if not resume_uploaded:
-            raise WorkdayApplyError("Resume not found on experience page — upload may have failed")
+            logger.warning("Resume not found on experience page — attempting re-upload")
+            try:
+                self._upload_resume(pdf_path)
+                resume_uploaded = self._page.query_selector(_SEL["resume_uploaded"])
+            except Exception as e:
+                logger.warning("Re-upload attempt failed: %s", e)
+            if not resume_uploaded:
+                raise WorkdayApplyError("Resume not found on experience page after re-upload attempt")
 
         # Fill any remaining unfilled fields (Social Network URLs, etc.) via known answers + AI fallback
         self._fill_remaining_fields(job)
@@ -800,7 +811,7 @@ class WorkdayApplicant:
                 break
             match, valid_options = self._search_skill_api(skill)
             if match:
-                self._check_skill_in_ui(container, match)
+                self._add_skill_in_ui(container, match)
                 added.append(match)
             else:
                 not_found_with_options[skill] = valid_options
@@ -839,7 +850,7 @@ class WorkdayApplicant:
                 match, valid_options = self._search_skill_api(skill)
                 if match:
                     if match.lower() not in [a.lower() for a in added]:
-                        self._check_skill_in_ui(container, match)
+                        self._add_skill_in_ui(container, match)
                         added.append(match)
                         current_count += 1
                 else:
@@ -940,8 +951,9 @@ class WorkdayApplicant:
             for item in results:
                 desc = item.get("descriptor", "")
                 item_id = item.get("id", "")
-                # Skip crowdsourced garbage: id == descriptor and starts lowercase
-                if item_id == desc and desc[0:1].islower():
+                # Skip crowdsourced garbage: id == descriptor and first alpha char is lowercase
+                first_alpha = next((c for c in desc if c.isalpha()), None)
+                if item_id == desc and first_alpha and first_alpha.islower():
                     continue
                 valid_options.append(desc)
                 if desc.lower() == skill_name.lower() and exact_match is None:
@@ -952,7 +964,8 @@ class WorkdayApplicant:
             logger.debug("  Skill API error for '%s': %s", skill_name, e)
         return None, []
 
-    def _check_skill_in_ui(self, container, skill_name: str):
+    @retry(max_retries=3, backoff=0)
+    def _add_skill_in_ui(self, container, skill_name: str):
         """Search for a skill and add it. Raises WorkdayApplyError if not added."""
         multiselect = container.query_selector(_SEL["multiselect"])
         if not multiselect:
@@ -1036,7 +1049,7 @@ class WorkdayApplicant:
         panels = section.query_selector_all('[role="group"][aria-labelledby*="-panel"]')
         return panels[-1] if panels else section
 
-    def _fill_section_panel(self, panel, answers: dict, substring_match: bool = False):
+    def _fill_section_panel(self, panel, answers: dict, substring_match: bool = False, require_exact_match: bool = False):
         """Dynamically scan fields in a panel and fill from answers dict."""
         fields = self._scan_page_fields(scope=panel)
         logger.info("    Panel has %d fillable field(s)", len(fields))
@@ -1046,7 +1059,7 @@ class WorkdayApplicant:
             value = self._resolve_panel_value(name, field["label"], answers)
             if value is not None:
                 logger.info("    Filling '%s' (%s) → '%s'", name, field["label"], str(value)[:30])
-                self._fill_field_by_type(field, value, substring_match=substring_match)
+                self._fill_field_by_type(field, value, substring_match=substring_match, require_exact_match=require_exact_match)
             elif field["required"]:
                 logger.warning("    No answer for required field '%s' (%s)", name, field["label"])
             else:
@@ -1105,7 +1118,7 @@ class WorkdayApplicant:
                 desc.fill(exp["roleDescription"])
 
 
-    def _select_from_searchable(self, field, value):
+    def _select_from_searchable(self, field, value, require_exact_match: bool = False):
         """Select a value from a type-to-search multiselect (server-filtered results).
 
         Used for fields with a text input that filters/fetches options as you type.
@@ -1123,6 +1136,9 @@ class WorkdayApplicant:
                    data-automation-id="formField-{name}", or a field dict with
                    'element' (multiSelectContainer), 'container', and 'field_name'.
             value: String or list of strings (priority order, first match wins).
+            require_exact_match: If True, verify the auto-selected pill exactly matches
+                                 the candidate; if not, delete the pill and try the next
+                                 candidate. Default False (accept whatever Enter selects).
         """
         # Resolve container and field_name from either a string or field dict
         if isinstance(field, str):
@@ -1156,6 +1172,20 @@ class WorkdayApplicant:
             # Check if Enter auto-selected (pill appeared)
             try:
                 container.wait_for_selector(_SEL["selected_item"], timeout=3000)
+                if require_exact_match:
+                    # Verify the pill matches our candidate — reject and remove if not
+                    pill = container.query_selector(_SEL["selected_item"])
+                    pill_text = (pill.get_attribute("title") or pill.inner_text().strip()) if pill else ""
+                    if self._normalize_text(pill_text) != self._normalize_text(candidate):
+                        logger.info(
+                            "  Searchable '%s': Enter selected '%s' (not exact match for '%s'), removing",
+                            field_name, pill_text, candidate,
+                        )
+                        delete_btn = pill.query_selector('[data-automation-id="DELETE_charm"]') if pill else None
+                        if delete_btn:
+                            delete_btn.click()
+                            time.sleep(0.3)
+                        continue  # try next candidate
                 logger.info("  Searchable '%s': selected with '%s'", field_name, candidate)
                 # Dismiss any lingering search popup
                 if self._page.query_selector(_SEL["dropdown_listbox"]):
@@ -1291,7 +1321,7 @@ class WorkdayApplicant:
     def _fill_form_page_with_loop(self, job: dict):
         """Fill form fields, re-scanning for conditional fields that appear after filling."""
         filled_names = set()
-        for pass_num in range(3):
+        for pass_num in range(10):
             fields = self._scan_page_fields(scope=self._page)
             new_fields = [f for f in fields if f["field_name"] not in filled_names]
             if not new_fields:
@@ -1300,7 +1330,7 @@ class WorkdayApplicant:
                 logger.info("  Pass %d: %d new field(s) appeared", pass_num + 1, len(new_fields))
             filled_names.update(f["field_name"] for f in new_fields)
             self._fill_form_page_fields(new_fields, job)
-            time.sleep(1)
+            time.sleep(2)
 
     def _fill_form_page_fields(self, fields: list, job: dict):
         """Fill a list of scanned fields (known fields + AI batch for unknowns)."""
@@ -1537,7 +1567,7 @@ class WorkdayApplicant:
             return True
         return False
 
-    def _fill_field_by_type(self, field: dict, value, substring_match: bool = False):
+    def _fill_field_by_type(self, field: dict, value, substring_match: bool = False, require_exact_match: bool = False):
         """Fill a field based on its input type."""
         input_type = field["input_type"]
 
@@ -1548,13 +1578,26 @@ class WorkdayApplicant:
         elif input_type == "text" or input_type == "textarea":
             # Text fields always get a string
             fill_value = value[0] if isinstance(value, list) else value
-            field["element"].fill(fill_value)
+            field["element"].fill(str(fill_value))
+            # Some numeric-only inputs silently drop decimal points ("1.5" → "15").
+            # Detect this and re-fill with the floored integer instead.
+            try:
+                actual = field["element"].input_value()
+                if actual != str(fill_value) and "." in str(fill_value):
+                    floored = str(int(float(fill_value)))
+                    logger.info(
+                        "  Field '%s': decimal not accepted ('%s' → '%s'), re-filling as '%s'",
+                        field["field_name"], fill_value, actual, floored,
+                    )
+                    field["element"].fill(floored)
+            except Exception:
+                pass  # input_value() not supported on textarea — ignore
 
         elif input_type == "dropdown":
             self._select_from_dropdown(field, value, substring_match=substring_match)
 
         elif input_type == "multiselect":
-            self._select_from_searchable(field, value)
+            self._select_from_searchable(field, value, require_exact_match=require_exact_match)
 
         elif input_type == "radio":
             fill_value = value[0] if isinstance(value, list) else value
@@ -1732,6 +1775,7 @@ IMPORTANT:
 - Always SKIP optional name fields such as "local given name", "local last name", "preferred name", "middle name", "nickname", or any variant of these. Set answer to "SKIP" with confidence 10.
 - For any visa/sponsorship question: the applicant is an Indian citizen working in India and does NOT require any visa sponsorship. Always answer "No" to sponsorship questions.
 - For any question asking whether the applicant meets or has the basic/minimum job requirements (e.g. "Do you have at least the basic job requirements..."): always answer "Yes" with confidence 10.
+- For any question about relevant years of experience in the applied role (e.g. "What is your relevant years of experience in the role you are applying?"): always answer "1.5" with confidence 10. Do not lower confidence based on the role — use this value unconditionally.
 - For date fields, always return the date in MM/DD/YYYY format (e.g. "07/14/2025"). Never use ISO format (YYYY-MM-DD) or any other format.
 
 KNOWN WORKDAY BUGS:
