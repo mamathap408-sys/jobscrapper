@@ -298,7 +298,10 @@ class WorkdayApplicant:
 
         try:
             # Step 1: Navigate to job page and ensure signed in
-            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            try:
+                self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            except PlaywrightTimeout:
+                logger.warning("networkidle timed out on goto — continuing anyway")
             self._ensure_signed_in()
 
             # Step 2: Click Apply
@@ -334,7 +337,10 @@ class WorkdayApplicant:
             logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
             input("Press Enter after you have signed in manually...")
 
-        self._page.reload(wait_until="networkidle")
+        try:
+            self._page.reload(wait_until="networkidle")
+        except PlaywrightTimeout:
+            logger.warning("networkidle timed out on reload — continuing anyway")
 
     # ── Step 1: Click Apply ────────────────────────────────────
 
@@ -354,7 +360,10 @@ class WorkdayApplicant:
             logger.info("Existing application found — deleting before re-applying")
             job_url = self._page.url
             self._delete_existing_application(job_title)
-            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            try:
+                self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            except PlaywrightTimeout:
+                logger.warning("networkidle timed out on goto — continuing anyway")
             self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
 
         self._page.query_selector(_SEL["apply_btn"]).click()
@@ -463,7 +472,10 @@ class WorkdayApplicant:
                 break
             except PlaywrightTimeout:
                 continue  # click didn't register, retry
-        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        try:
+            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        except PlaywrightTimeout:
+            logger.warning("networkidle timed out after sign-in — continuing anyway")
 
     # ── Step 3: Multi-step form filling ────────────────────────
 
@@ -543,7 +555,11 @@ class WorkdayApplicant:
         self._click_next()
 
         # Steps 2+: Fill pages until Submit
+        _page_count = 0
         while True:
+            _page_count += 1
+            if _page_count > 20:
+                raise WorkdayApplyError("Exceeded 20 pages — likely stuck in a loop")
             self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
             self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 

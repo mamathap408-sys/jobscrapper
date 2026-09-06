@@ -857,3 +857,30 @@ bdx.wd1.myworkdayjobs.com/en-IN/EXTERNAL_CAREER_SITE_INDIA:
     descriptor: IND Bengaluru - Technology Campus
   - id: b6e62d886a2b012c7e105f3dc101958b
     descriptor: IND Hyderabad - Hyderabad DC
+accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers:
+  locationCountry:
+  - id: c4f78be1a8f14da0ab49ce1162348a5e
+    descriptor: India
+  locations:
+  - id: 3666ef49a96a019a589ae377cf00b659
+    descriptor: Bengaluru
+  - id: 940562459a6f014efb74df3ec3007526
+    descriptor: Bengaluru, BDC11A
+  - id: ac6d4ea6fd6b0149bc1401da9401929c
+    descriptor: Bengaluru, BDC14A
+  - id: 940562459a6f0162f4cccb3ec3003926
+    descriptor: Bengaluru, BDC4C
+  - id: 940562459a6f01b1d9e6d43ec3005226
+    descriptor: Bengaluru, BDC7A
+  - id: 940562459a6f0141182dd83ec3005c26
+    descriptor: Bengaluru, BDC7C
+  - id: 940562459a6f01a9f3abbe3ec3001126
+    descriptor: Bengaluru, BDC9A
+  - id: 3666ef49a96a01c10ff6dd77cf00a259
+    descriptor: Hyderabad
+  - id: 940562459a6f01016759323fc3006a27
+    descriptor: Hyderabad, HDC2A
+  - id: 940562459a6f019b12fc3b3fc3008827
+    descriptor: Hyderabad, HDC3B
+  - id: d8f56faf44671000ee38abf282610000
+    descriptor: Hyderabad, HDC5A

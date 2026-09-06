@@ -177,13 +177,28 @@ def _discover_for_portal(url: str, client: httpx.Client) -> dict | None:
 
 
 def main():
-    """Discover India location facets for all Workday portals and write to YAML."""
+    """Discover India location facets for Workday portals and write to YAML."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Discover Workday location facets")
+    parser.add_argument(
+        "--company",
+        help="Run discovery for a single company (substring match on URL) and merge into existing YAML",
+    )
+    args = parser.parse_args()
+
     urls = load_urls()
     workday_urls = [(t, u) for t, u in urls if t == "workday"]
 
     if not workday_urls:
         logger.warning("No workday URLs found in urls.yaml")
         return
+
+    if args.company:
+        workday_urls = [(t, u) for t, u in workday_urls if args.company.lower() in u.lower()]
+        if not workday_urls:
+            logger.error("No workday URL matching '%s' found in urls.yaml", args.company)
+            return
 
     logger.info("Discovering location facets for %d Workday portals...", len(workday_urls))
 
@@ -224,6 +239,13 @@ def main():
     for portal in results.values():
         for param in portal:
             portal[param].sort(key=lambda e: (e["descriptor"].lower(), e["id"]))
+
+    # Merge into existing YAML when running for a subset, otherwise overwrite
+    if args.company and OUTPUT_PATH.exists():
+        with open(OUTPUT_PATH) as f:
+            existing = yaml.safe_load(f) or {}
+        existing.update(results)
+        results = existing
 
     # Write YAML output
     header = (

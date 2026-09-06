@@ -31,6 +31,8 @@ Usage:
 
 import logging
 import signal
+import subprocess
+import sys
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -276,12 +278,14 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     digest_mode = config.get("email", {}).get("digest_mode", "per_company")
     attach_resume = config.get("resume_builder", {}).get("attach_resume", False)
     wd_locations = workday_locations or {}
+    auto_apply = config.get("apply", {}).get("auto_apply", False)
     total_matches = 0
     total_filtered = 0
 
     # For aggregated mode: accumulate across all portals, send once at the end
     all_matches = []
     all_filtered = []
+    cycle_job_ids = []
 
     for scraper_type, url in urls:
         if _shutdown:
@@ -312,6 +316,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                 for job, score, reason in scored:
                     is_match = score >= matcher.threshold
                     db.save_job(job, match_score=score, match_reason=reason, matched=is_match)
+                    cycle_job_ids.append(job.job_id)
                     if is_match:
                         matches.append((job, score, reason))
                         logger.info(
@@ -388,6 +393,17 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         "Cycle complete: %d portals checked, %d matches, %d filtered",
         len(urls), total_matches, total_filtered,
     )
+
+    if auto_apply and cycle_job_ids:
+        ids_csv = ",".join(cycle_job_ids)
+        logger.info("Auto-apply: passing %d job(s) to apply.py", len(cycle_job_ids))
+        try:
+            subprocess.run(
+                [sys.executable, "apply.py", "--job-ids", ids_csv],
+                cwd=str(Path(__file__).parent),
+            )
+        except Exception as e:
+            logger.error("Auto-apply failed: %s", e)
 
 
 def main():

@@ -6,7 +6,6 @@ workday | https://iqvia.wd1.myworkdayjobs.com/en-US/iqvia
 workday | https://dell.wd1.myworkdayjobs.com/en-US/External
 workday | https://target.wd5.myworkdayjobs.com/en-US/targetcareers
 workday | https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced
-#workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers
 workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
 workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
 workday | https://elevancehealth.wd1.myworkdayjobs.com/en-US/carelonglobal_in
@@ -102,6 +101,8 @@ workday | https://wk.wd3.myworkdayjobs.com/en-US/External
 
 # Healthcare / MedTech (35 India jobs)
 workday | https://bdx.wd1.myworkdayjobs.com/en-IN/EXTERNAL_CAREER_SITE_INDIA
+#workday | https://accenture.wd103.myworkdayjobs.com/en-US/AccentureCareers 
+# commented about because accenture only allows one job application at a time
 
 amazon | https://www.amazon.jobs/en/search.json?normalized_country_code[]=IND&loc_query=Bangalore+India&is_manager[]=0&sort=recent&result_limit=100
 

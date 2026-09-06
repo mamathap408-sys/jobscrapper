@@ -143,7 +143,7 @@ def _filter_skip_roles(jobs: list[dict], skip_roles: list[dict], config: dict, d
                         reason = item.get("reason", "role blacklisted")
                         logger.info("Role filter: skipping '%s' at %s — %s", job["title"], job["company"], reason)
                         db.create_application(job["job_id"])
-                        db.mark_apply_failed(job["job_id"], reason)
+                        db.mark_invalid(job["job_id"], reason)
                         skipped_ids.add(job["job_id"])
         except Exception as e:
             logger.warning("Role filter LLM batch failed: %s — skipping filter for this batch", e)
@@ -234,6 +234,22 @@ def _load_jobs(db: JobDatabase, args, threshold: float) -> list[dict]:
             print("No resume generated for this job. Run generate_resume.py first.", file=sys.stderr)
             sys.exit(1)
         return [job]
+    elif args.job_ids:
+        ids = [jid.strip() for jid in args.job_ids.split(",") if jid.strip()]
+        jobs = []
+        for jid in ids:
+            job = db.get_job_by_id(jid)
+            if not job:
+                raise RuntimeError(f"Job not found in DB: {jid}")
+            if job.get("match_score", 0) < threshold:
+                logger.info("Below threshold (%.0f < %.0f): %s — skipping", job["match_score"], threshold, job["title"])
+                continue
+            if not job.get("resume_name"):
+                raise RuntimeError(f"No resume for '{job['title']}' ({jid}) — run generate_resume.py first")
+            jobs.append(job)
+        if not jobs:
+            print("No valid jobs found from provided job IDs.")
+        return jobs
     else:
         jobs = db.get_jobs_to_apply(threshold)
         if not jobs:
@@ -401,12 +417,15 @@ def main():
     parser = argparse.ArgumentParser(description="Auto-apply to job postings")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--job-id", help="Apply to a specific job by DB job_id")
+    group.add_argument("--job-ids", help="Comma-separated job IDs to apply to (runs full filter pipeline on them)")
     group.add_argument("--auto", action="store_true", default=True,
                        help="Apply to all qualifying jobs (default when no args given)")
     parser.add_argument("--company", help="Filter jobs to a specific company (case-insensitive substring match)")
     parser.add_argument("--portal", help="Filter jobs by applicant portal type (e.g. workday, successfactors)")
+    parser.add_argument("--loops", type=int, default=1,
+                        help="How many times to run the apply cycle, retrying failed jobs each loop (default: 1)")
     args = parser.parse_args()
-    if args.job_id:
+    if args.job_id or args.job_ids:
         args.auto = False
 
     config = load_config()
@@ -416,78 +435,85 @@ def main():
     threshold = apply_cfg.get("apply_threshold", 7)
 
     try:
-        # Load candidate jobs
-        jobs = _load_jobs(db, args, threshold)
-        if not jobs:
-            return
-
-        # Company filter
-        if args.company:
-            needle = args.company.lower()
-            jobs = [j for j in jobs if needle in j["company"].lower()]
-            if not jobs:
-                print(f"No jobs found for company matching '{args.company}'.")
-                return
-            logger.info("Company filter '%s': %d job(s)", args.company, len(jobs))
-
-        # Split: already-pending (skip filters) vs new (need full pipeline)
-        already_pending = []
-        already_failed = []
-        new_jobs = []
-        for job in jobs:
-            app = db.get_application_status(job["job_id"])
-            if app and app["status"] == "pending":
-                already_pending.append(job)
-            elif app and app["status"] == "failed":
-                already_failed.append(job)
-            else:
-                new_jobs.append(job)
-
-        if already_pending or already_failed:
-            logger.info("%d pending + %d failed job(s) already validated — skipping filters",
-                        len(already_pending), len(already_failed))
-
-        # Run filters on new jobs only
-        validated = []
-        if new_jobs:
-            validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg)
-
-        # Combine: pending first, then newly validated, then failed (retries last)
-        all_jobs = already_pending + validated + already_failed
-        if not all_jobs:
-            print("No jobs to apply to after all filters.")
-            return
-
-        # Group by applicant type
-        jobs_by_type = defaultdict(list)
-        for job in all_jobs:
-            atype = detect_applicant_type(job["url"])
-            if atype:
-                jobs_by_type[atype].append(job)
-
-        # Portal filter
-        if args.portal:
-            needle = args.portal.lower()
-            jobs_by_type = {k: v for k, v in jobs_by_type.items() if needle in k.lower()}
-            if not jobs_by_type:
-                print(f"No jobs found for portal matching '{args.portal}'.")
-                return
-            logger.info("Portal filter '%s': %d type(s)", args.portal, len(jobs_by_type))
-
-        # Print summary
-        total = sum(len(jl) for jl in jobs_by_type.values())
-        print(f"\nFound {total} job(s) to apply to:\n")
-        for atype, type_jobs in jobs_by_type.items():
-            print(f"  [{atype}] {len(type_jobs)} job(s):")
-            for j in type_jobs:
-                print(f"    [{j['match_score']:.0f}] {j['title']} at {j['company']} (resume: {j['resume_name']})")
-        print()
-
-        # Apply
-        _apply_jobs(jobs_by_type, config, db, answers, apply_cfg)
-
+        for loop_num in range(1, args.loops + 1):
+            if args.loops > 1:
+                logger.info("=== Loop %d/%d ===", loop_num, args.loops)
+            run_apply_pipeline(db, args, config, answers, apply_cfg, threshold)
     finally:
         db.close()
+
+
+def run_apply_pipeline(db: JobDatabase, args, config: dict, answers: dict, apply_cfg: dict,
+                       threshold: float):
+    """Core apply pipeline: load → filter → group → apply."""
+    jobs = _load_jobs(db, args, threshold)
+    if not jobs:
+        return
+
+    # Company filter
+    if args.company:
+        needle = args.company.lower()
+        jobs = [j for j in jobs if needle in j["company"].lower()]
+        if not jobs:
+            logger.info("No jobs found for company matching '%s'", args.company)
+            return
+        logger.info("Company filter '%s': %d job(s)", args.company, len(jobs))
+
+    # Split: already-pending (skip filters) vs new (need full pipeline)
+    already_pending = []
+    already_failed = []
+    new_jobs = []
+    for job in jobs:
+        app = db.get_application_status(job["job_id"])
+        if app and app["status"] == "pending":
+            already_pending.append(job)
+        elif app and app["status"] == "failed":
+            already_failed.append(job)
+        else:
+            new_jobs.append(job)
+
+    if already_pending or already_failed:
+        logger.info("%d pending + %d failed job(s) already validated — skipping filters",
+                    len(already_pending), len(already_failed))
+
+    # Run filters on new jobs only
+    validated = []
+    if new_jobs:
+        validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg)
+
+    # Combine: pending first, then newly validated, then failed (retries last)
+    all_jobs = already_pending + validated + already_failed
+    if not all_jobs:
+        logger.info("No jobs to apply to after filters")
+        return
+
+    # Group by applicant type
+    jobs_by_type = defaultdict(list)
+    for job in all_jobs:
+        atype = detect_applicant_type(job["url"])
+        if atype:
+            jobs_by_type[atype].append(job)
+
+    # Portal filter
+    if args.portal:
+        needle = args.portal.lower()
+        jobs_by_type = {k: v for k, v in jobs_by_type.items() if needle in k.lower()}
+        if not jobs_by_type:
+            logger.info("No jobs found for portal matching '%s'", args.portal)
+            return
+        logger.info("Portal filter '%s': %d type(s)", args.portal, len(jobs_by_type))
+
+    # Print summary
+    total = sum(len(jl) for jl in jobs_by_type.values())
+    print(f"\nFound {total} job(s) to apply to:\n")
+    for atype, type_jobs in jobs_by_type.items():
+        print(f"  [{atype}] {len(type_jobs)} job(s):")
+        for j in type_jobs:
+            print(f"    [{j['match_score']:.0f}] {j['title']} at {j['company']} (resume: {j['resume_name']})")
+    print()
+
+    # Apply
+    _apply_jobs(jobs_by_type, config, db, answers, apply_cfg)
 
 
 if __name__ == "__main__":
