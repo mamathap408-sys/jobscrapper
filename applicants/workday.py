@@ -1025,7 +1025,9 @@ class WorkdayApplicant:
         pills = container.query_selector_all('[data-automation-id="selectedItem"]')
         skill_lower = skill_name.lower().replace(" (suggested)", "")
         for pill in pills:
-            label = (pill.get_attribute("title") or "").lower().replace(" (suggested)", "")
+            prompt_el = pill.query_selector('[data-automation-id="promptOption"]')
+            label = (prompt_el.get_attribute("data-automation-label") or "") if prompt_el else (pill.get_attribute("title") or "")
+            label = label.lower().replace(" (suggested)", "")
             if label == skill_lower:
                 delete_btn = pill.query_selector('[data-automation-id="DELETE_charm"]')
                 if delete_btn:

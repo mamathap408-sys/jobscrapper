@@ -282,10 +282,23 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     total_matches = 0
     total_filtered = 0
 
+    def _run_auto_apply(job_ids: list[str]):
+        """Fire apply.py for the given job IDs right after an email is sent."""
+        if not auto_apply or not job_ids:
+            return
+        ids_csv = ",".join(job_ids)
+        logger.info("Auto-apply: passing %d job(s) to apply.py", len(job_ids))
+        try:
+            subprocess.run(
+                [sys.executable, "apply.py", "--job-ids", ids_csv],
+                cwd=str(Path(__file__).parent),
+            )
+        except Exception as e:
+            logger.error("Auto-apply failed: %s", e)
+
     # For aggregated mode: accumulate across all portals, send once at the end
     all_matches = []
     all_filtered = []
-    cycle_job_ids = []
 
     for scraper_type, url in urls:
         if _shutdown:
@@ -316,7 +329,6 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                 for job, score, reason in scored:
                     is_match = score >= matcher.threshold
                     db.save_job(job, match_score=score, match_reason=reason, matched=is_match)
-                    cycle_job_ids.append(job.job_id)
                     if is_match:
                         matches.append((job, score, reason))
                         logger.info(
@@ -340,6 +352,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                                              attachments=pdfs or None)
                         for job, _, _ in matches + filtered:
                             db.mark_notified(job.job_id)
+                        _run_auto_apply([job.job_id for job, _, _ in matches + filtered])
                 else:
                     # Accumulate for aggregated email
                     all_matches.extend(matches)
@@ -357,8 +370,10 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                             pdfs = resume_builder.generate_for_matches(all_matches)
                         notifier.send_digest(all_matches, filtered=all_filtered,
                                              attachments=pdfs or None)
+                        batch_ids = [job.job_id for job, _, _ in all_matches + all_filtered]
                         for job, _, _ in all_matches + all_filtered:
                             db.mark_notified(job.job_id)
+                        _run_auto_apply(batch_ids)
                         all_matches.clear()
                         all_filtered.clear()
 
@@ -388,22 +403,12 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         notifier.send_digest(all_matches, filtered=all_filtered, attachments=pdfs or None)
         for job, _, _ in all_matches + all_filtered:
             db.mark_notified(job.job_id)
+        _run_auto_apply([job.job_id for job, _, _ in all_matches + all_filtered])
 
     logger.info(
         "Cycle complete: %d portals checked, %d matches, %d filtered",
         len(urls), total_matches, total_filtered,
     )
-
-    if auto_apply and cycle_job_ids:
-        ids_csv = ",".join(cycle_job_ids)
-        logger.info("Auto-apply: passing %d job(s) to apply.py", len(cycle_job_ids))
-        try:
-            subprocess.run(
-                [sys.executable, "apply.py", "--job-ids", ids_csv],
-                cwd=str(Path(__file__).parent),
-            )
-        except Exception as e:
-            logger.error("Auto-apply failed: %s", e)
 
 
 def main():
