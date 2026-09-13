@@ -117,8 +117,16 @@ def _signal_handler(sig, frame):
     _shutdown = True
 
 
+# Scrapers that also accept a `cities` filter from their config section.
+_CITY_SCRAPERS = {"greenhouse", "lever", "ashby"}
+
+
 def _create_scraper(scraper_type: str, config: dict, url: str, wd_locations: dict):
     """Create the appropriate scraper instance for a given URL.
+
+    `max_age_days` is a single shared setting (config["max_age_days"], default 10)
+    applied to every scraper. Workday additionally gets its per-portal location
+    facets; the Greenhouse/Lever/Ashby scrapers additionally get a `cities` filter.
 
     Args:
         scraper_type:  The scraper type string from urls.yaml (e.g. "workday", "amazon").
@@ -129,55 +137,15 @@ def _create_scraper(scraper_type: str, config: dict, url: str, wd_locations: dic
     Returns:
         A scraper instance ready to call .scrape(url).
     """
+    max_age_days = config.get("max_age_days", 10)
+
     if scraper_type == "workday":
-        wd_cfg = config.get("workday", {})
         facet_list = _get_facets_for_url(url, wd_locations)
-        return get_scraper(scraper_type, facet_list=facet_list, max_age_days=wd_cfg.get("max_age_days"))
-    elif scraper_type == "amazon":
-        amz_cfg = config.get("amazon", {})
-        return get_scraper(scraper_type, max_age_days=amz_cfg.get("max_age_days"))
-    # visa scraper deprecated — Visa migrated to Workday (use workday type)
-    elif scraper_type == "cognizant":
-        cog_cfg = config.get("cognizant", {})
-        return get_scraper(scraper_type, max_age_days=cog_cfg.get("max_age_days"))
-    elif scraper_type == "successfactors":
-        sf_cfg = config.get("successfactors", {})
-        return get_scraper(scraper_type, max_age_days=sf_cfg.get("max_age_days"))
-    elif scraper_type == "google":
-        google_cfg = config.get("google", {})
-        return get_scraper(scraper_type, max_age_days=google_cfg.get("max_age_days"))
-    elif scraper_type == "hcl":
-        hcl_cfg = config.get("hcl", {})
-        return get_scraper(scraper_type, max_age_days=hcl_cfg.get("max_age_days"))
-    elif scraper_type == "infosys":
-        infy_cfg = config.get("infosys", {})
-        return get_scraper(scraper_type, max_age_days=infy_cfg.get("max_age_days"))
-    elif scraper_type == "goldmansachs":
-        gs_cfg = config.get("goldmansachs", {})
-        return get_scraper(scraper_type, max_age_days=gs_cfg.get("max_age_days"))
-    elif scraper_type == "greenhouse":
-        gh_cfg = config.get("greenhouse", {})
-        return get_scraper(
-            scraper_type,
-            cities=gh_cfg.get("cities"),
-            max_age_days=gh_cfg.get("max_age_days"),
-        )
-    elif scraper_type == "lever":
-        lever_cfg = config.get("lever", {})
-        return get_scraper(
-            scraper_type,
-            cities=lever_cfg.get("cities"),
-            max_age_days=lever_cfg.get("max_age_days"),
-        )
-    elif scraper_type == "ashby":
-        ashby_cfg = config.get("ashby", {})
-        return get_scraper(
-            scraper_type,
-            cities=ashby_cfg.get("cities"),
-            max_age_days=ashby_cfg.get("max_age_days"),
-        )
-    else:
-        return get_scraper(scraper_type)
+        return get_scraper(scraper_type, facet_list=facet_list, max_age_days=max_age_days)
+    if scraper_type in _CITY_SCRAPERS:
+        cities = config.get(scraper_type, {}).get("cities")
+        return get_scraper(scraper_type, cities=cities, max_age_days=max_age_days)
+    return get_scraper(scraper_type, max_age_days=max_age_days)
 
 
 def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
