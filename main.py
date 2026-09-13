@@ -235,6 +235,24 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         except Exception as e:
             logger.error("Auto-apply failed: %s", e)
 
+    def _flush_digest(matches: list, filtered: list, company: str | None = None):
+        """Sort, build resume PDFs, email the digest, mark notified, then auto-apply.
+
+        Shared by all three send paths (per-company, aggregated early-flush,
+        aggregated end-of-cycle) so they can't drift apart. No-op if empty.
+        """
+        if not matches and not filtered:
+            return
+        matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+        filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+        pdfs = {}
+        if attach_resume and resume_builder and matches:
+            pdfs = resume_builder.generate_for_matches(matches)
+        notifier.send_digest(matches, filtered=filtered, company=company, attachments=pdfs or None)
+        for job, _, _ in matches + filtered:
+            db.mark_notified(job.job_id)
+        _run_auto_apply([job.job_id for job, _, _ in matches + filtered])
+
     # For aggregated mode: accumulate across all portals, send once at the end
     all_matches = []
     all_filtered = []
@@ -276,24 +294,11 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     else:
                         filtered.append((job, score, reason))
 
-                # Step 6: Sort by score descending, then by most recent posted_date
-                matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-                filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-
+                # Step 6: send now (per-company) or accumulate for the aggregated digest.
+                # _flush_digest sorts, builds PDFs, emails, marks notified, and auto-applies.
                 if digest_mode == "per_company":
-                    # Send one email per company immediately
-                    if matches or filtered:
-                        company = new_jobs[0].company
-                        pdfs = {}
-                        if attach_resume and resume_builder and matches:
-                            pdfs = resume_builder.generate_for_matches(matches)
-                        notifier.send_digest(matches, filtered=filtered, company=company,
-                                             attachments=pdfs or None)
-                        for job, _, _ in matches + filtered:
-                            db.mark_notified(job.job_id)
-                        _run_auto_apply([job.job_id for job, _, _ in matches + filtered])
+                    _flush_digest(matches, filtered, company=new_jobs[0].company)
                 else:
-                    # Accumulate for aggregated email
                     all_matches.extend(matches)
                     all_filtered.extend(filtered)
 
@@ -302,17 +307,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                     if agg_threshold > 0 and len(all_matches) >= agg_threshold:
                         logger.info("Aggregated threshold reached (%d matches >= %d) — sending early digest",
                                     len(all_matches), agg_threshold)
-                        all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-                        all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-                        pdfs = {}
-                        if attach_resume and resume_builder and all_matches:
-                            pdfs = resume_builder.generate_for_matches(all_matches)
-                        notifier.send_digest(all_matches, filtered=all_filtered,
-                                             attachments=pdfs or None)
-                        batch_ids = [job.job_id for job, _, _ in all_matches + all_filtered]
-                        for job, _, _ in all_matches + all_filtered:
-                            db.mark_notified(job.job_id)
-                        _run_auto_apply(batch_ids)
+                        _flush_digest(all_matches, all_filtered)
                         all_matches.clear()
                         all_filtered.clear()
 
@@ -333,16 +328,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
             time.sleep(delay)
 
     # Aggregated mode: send one combined email after all portals are processed
-    if digest_mode == "aggregated" and (all_matches or all_filtered):
-        all_matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-        all_filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-        pdfs = {}
-        if attach_resume and resume_builder and all_matches:
-            pdfs = resume_builder.generate_for_matches(all_matches)
-        notifier.send_digest(all_matches, filtered=all_filtered, attachments=pdfs or None)
-        for job, _, _ in all_matches + all_filtered:
-            db.mark_notified(job.job_id)
-        _run_auto_apply([job.job_id for job, _, _ in all_matches + all_filtered])
+    if digest_mode == "aggregated":
+        _flush_digest(all_matches, all_filtered)
 
     logger.info(
         "Cycle complete: %d portals checked, %d matches, %d filtered",
