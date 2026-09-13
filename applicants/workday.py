@@ -49,6 +49,7 @@ _SEL = {
     # Job page
     "apply_btn":        '[data-automation-id="jobPostingApplyButton"], [data-automation-id="adventureButton"]',
     "continue_btn":     '[data-automation-id="continueButton"]',
+    "view_app_btn":     '[data-automation-id="viewButton"]',
     "autofill_resume":  '[data-automation-id="autofillWithResume"]',
 
     # Candidate Home (for deleting existing applications)
@@ -314,6 +315,10 @@ class WorkdayApplicant:
             return True
 
         except PlaywrightTimeout as e:
+            if self._page.query_selector(_SEL["view_app_btn"]):
+                logger.info("'View Application' button found — already applied to: %s at %s",
+                            job["title"], job["company"])
+                return True
             raise WorkdayApplyError(f"Timeout waiting for element: {e}") from e
 
     # ── Pre-auth: Sign in from job page header ──────────────────
@@ -1754,10 +1759,10 @@ class WorkdayApplicant:
             for idx, field in enumerate(batch, 1):
                 options_text = ""
                 if field.get("options"):
-                    # Filter out placeholder values for required dropdowns
+                    # Filter out placeholder values so the LLM never picks a non-answer
+                    # as if it were a real option (it should say SKIP instead).
                     opts = field["options"]
-                    if field["required"]:
-                        opts = [o for o in opts if o.lower() not in ("select one", "-- select --", "select", "")]
+                    opts = [o for o in opts if o.lower() not in ("select one", "-- select --", "select", "")]
                     options_text = f"  Options: {json.dumps(opts)}"
                 required_text = "Required" if field["required"] else "Optional"
                 questions_block += (
@@ -1810,8 +1815,8 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                 for idx, (field, item) in enumerate(zip(batch, parsed)):
                     answer = item.get("answer", "")
                     confidence = int(item.get("confidence", 0))
-                    logger.info("  LLM batch answer %d (confidence=%d): '%s'",
-                                idx + 1, confidence, str(answer)[:60])
+                    logger.info("  LLM batch answer %d for '%s' (confidence=%d): '%s'",
+                                idx + 1, field["label"][:60], confidence, str(answer)[:60])
 
                     if confidence < self._confidence_threshold:
                         raise WorkdayApplyError(

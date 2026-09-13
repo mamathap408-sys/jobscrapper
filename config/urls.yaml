@@ -178,6 +178,64 @@ ashby | https://jobs.ashbyhq.com/bespokelabs
 # T. Rowe Price   | https://troweprice.wd5.myworkdayjobs.com/TRowePrice (Workday, 0 India jobs)
 # Std Chartered   | https://peopleplus.wd3.myworkdayjobs.com/SCB_Careers (Workday, 0 India jobs)
 
+# ── New Workday portals — Bengaluru IT/Software, API-verified 2026-09-11 ──
+workday | https://fiserv.wd5.myworkdayjobs.com/EXT
+workday | https://marvell.wd1.myworkdayjobs.com/MarvellCareers
+workday | https://gsknch.wd3.myworkdayjobs.com/GSKCareers
+workday | https://stryker.wd1.myworkdayjobs.com/StrykerCareers
+workday | https://baxter.wd1.myworkdayjobs.com/baxter
+workday | https://illumina.wd1.myworkdayjobs.com/illumina-careers
+workday | https://heinz.wd1.myworkdayjobs.com/KraftHeinz_Careers
+workday | https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site
+workday | https://guidewire.wd5.myworkdayjobs.com/external
+workday | https://spgi.wd5.myworkdayjobs.com/SPGI_Careers
+workday | https://lilly.wd115.myworkdayjobs.com/LLY
+workday | https://cat.wd5.myworkdayjobs.com/CaterpillarCareers
+workday | https://dxctechnology.wd1.myworkdayjobs.com/DXCJobs
+workday | https://kimberlyclark.wd1.myworkdayjobs.com/GLOBAL
+# ── More Workday portals — Bengaluru IT/Software, API-verified 2026-09-11 (batch 2) ──
+workday | https://kyndryl.wd5.myworkdayjobs.com/KyndrylProfessionalCareers
+workday | https://harman.wd3.myworkdayjobs.com/HARMAN
+workday | https://cigna.wd5.myworkdayjobs.com/cignacareers
+workday | https://jda.wd5.myworkdayjobs.com/JDA_Careers
+workday | https://sec.wd3.myworkdayjobs.com/Samsung_Careers
+workday | https://lseg.wd3.myworkdayjobs.com/Careers
+workday | https://arrow.wd1.myworkdayjobs.com/AC
+workday | https://zebra.wd501.myworkdayjobs.com/Zebra_careers
+workday | https://nttlimited.wd3.myworkdayjobs.com/NTT_Careers
+workday | https://nike.wd1.myworkdayjobs.com/nke
+workday | https://worldpay.wd5.myworkdayjobs.com/Worldpay_External_Careers_Site
+
+# ── New Workday portals — Bengaluru IT/Software, API-verified 2026-09-12 (batch 3) ──
+
+# Tech / Software / Cybersecurity (2-70 Bengaluru jobs)
+workday | https://hp.wd5.myworkdayjobs.com/en-US/ExternalCareerSite
+workday | https://trellix.wd1.myworkdayjobs.com/EnterpriseCareers
+workday | https://epicorsoftware.wd5.myworkdayjobs.com/en-US/epicorjobs
+workday | https://cloudera.wd5.myworkdayjobs.com/en-US/External_Career
+workday | https://fis.wd5.myworkdayjobs.com/SearchJobs
+workday | https://zendesk.wd1.myworkdayjobs.com/en-US/zendesk
+
+# Semiconductors / Hardware Engineering (5-36 Bengaluru jobs)
+workday | https://microchiphr.wd5.myworkdayjobs.com/External
+workday | https://jabil.wd5.myworkdayjobs.com/Jabil_Careers
+workday | https://borgwarner.wd5.myworkdayjobs.com/en-US/BorgWarner_Careers
+
+# Industrial / Engineering with software/IT roles (9-82 Bengaluru jobs)
+workday | https://3m.wd1.myworkdayjobs.com/Search
+workday | https://magna.wd3.myworkdayjobs.com/en-US/Magna
+workday | https://globalhr.wd5.myworkdayjobs.com/REC_RTX_Ext_Gateway
+workday | https://tranetechnologies.wd12.myworkdayjobs.com/Trane_Technologies_Careers
+workday | https://carrier.wd5.myworkdayjobs.com/jobs
+workday | https://bakerhughes.wd5.myworkdayjobs.com/BakerHughes
+workday | https://agilent.wd5.myworkdayjobs.com/Agilent_Careers
+
+# Consumer / Retail / Travel (6-41 Bengaluru jobs)
+workday | https://expedia.wd108.myworkdayjobs.com/en-US/search
+workday | https://abinbev.wd1.myworkdayjobs.com/IND
+workday | https://lowes.wd5.myworkdayjobs.com/LWS_External_CS
+workday | https://levistraussandco.wd5.myworkdayjobs.com/External
+
 # --- Workday portals with India jobs but NOT in Bangalore (Pune/Gurgaon/Mumbai/Chennai) ---
 #workday | https://ghr.wd1.myworkdayjobs.com/lateral-apac                      # India jobs (Chennai only)
 #workday | https://mastercard.wd1.myworkdayjobs.com/en-US/CorporateCareers  # 249 India jobs (Pune, Gurgaon)
