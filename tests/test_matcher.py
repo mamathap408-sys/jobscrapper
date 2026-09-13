@@ -4,8 +4,8 @@ import base64
 import json
 from unittest.mock import MagicMock, patch
 
-from scrapers.base import JobPosting, JobProfile
-from services.matcher import _build_profile_text, _build_jobs_text
+from scrapers.base import JobPosting
+from services.matcher import _build_jobs_text
 
 
 def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
@@ -20,19 +20,6 @@ def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
     )
 
 
-def _sample_profiles():
-    return [
-        JobProfile(
-            title="Software Engineer",
-            skills=["Python", "AWS", "Distributed Systems"],
-            tools=["Git", "Claude Code"],
-            experience_years=5,
-            location_preference="Remote",
-            additional_criteria="Looking for senior IC backend roles.",
-        ),
-    ]
-
-
 def _sample_config():
     return {
         "genai": {
@@ -45,18 +32,8 @@ def _sample_config():
             "application_name": "test-app",
             "match_threshold": 6,
         },
-        "profiles": _sample_profiles(),
         "scoring_instructions": "Score 1-10 based on skill match.",
     }
-
-
-def test_build_profile_text():
-    text = _build_profile_text(_sample_profiles())
-    assert "Profile 1: Software Engineer" in text
-    assert "Python" in text
-    assert "5 years" in text
-    assert "Remote" in text
-    assert "Claude Code" in text
 
 
 def test_build_jobs_text():
@@ -135,7 +112,6 @@ def test_matcher_with_mock_gateway():
 
 
 if __name__ == "__main__":
-    test_build_profile_text()
     test_build_jobs_text()
     test_build_jobs_text_trims_long_description_and_logs_warning()
     test_matcher_with_mock_gateway()

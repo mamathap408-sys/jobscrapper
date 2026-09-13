@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import load_config, load_answers
-from config.loader import ANSWERS_PATH
+from config.loader import ANSWERS_PATH, load_base_resume
 from services.db import JobDatabase
 from services.genai_client import GenAIClient
 from services.resume_builder import ResumeBuilder
@@ -257,7 +257,8 @@ def _load_jobs(db: JobDatabase, args, threshold: float) -> list[dict]:
         return jobs
 
 
-def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: dict, apply_cfg: dict) -> list[dict]:
+def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: dict, apply_cfg: dict,
+                     resume_text: str) -> list[dict]:
     """Run full filter pipeline on new (unvalidated) jobs. Marks survivors as pending."""
     blacklist = [c.lower() for c in apply_cfg.get("blacklist_companies", [])]
     skip_roles = apply_cfg.get("skip_roles", [])
@@ -293,7 +294,8 @@ def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: d
 
     active = []
     for atype, type_jobs in by_type.items():
-        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
+        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw,
+                                  resume_text=resume_text)
         for job in type_jobs:
             is_valid, status_code = applicant.is_job_valid(job["url"])
             if not is_valid:
@@ -326,7 +328,8 @@ def _filter_new_jobs(jobs: list[dict], config: dict, db: JobDatabase, answers: d
 
 # ── Apply loop ─────────────────────────────────────────────────
 
-def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict, apply_cfg: dict):
+def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict, apply_cfg: dict,
+                resume_text: str):
     """Start browsers and apply to all jobs. Re-checks expiry before each application."""
     apply_email = answers.get("workday_account", {}).get("email", "")
     resume_email = apply_cfg.get("resume_email", "")
@@ -343,7 +346,8 @@ def _apply_jobs(jobs_by_type: dict, config: dict, db: JobDatabase, answers: dict
     answers_raw = ANSWERS_PATH.read_text()
     for atype, type_jobs in jobs_by_type.items():
         logger.info("Starting %s applicant for %d job(s)", atype, len(type_jobs))
-        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw)
+        applicant = get_applicant(atype, config=config, answers=answers, answers_raw=answers_raw,
+                                  resume_text=resume_text)
         applicant.start()
 
         try:
@@ -430,6 +434,7 @@ def main():
 
     config = load_config()
     answers = load_answers()
+    resume_text = load_base_resume(config)
     db = JobDatabase()
     apply_cfg = config.get("apply", {})
     threshold = apply_cfg.get("apply_threshold", 7)
@@ -438,13 +443,13 @@ def main():
         for loop_num in range(1, args.loops + 1):
             if args.loops > 1:
                 logger.info("=== Loop %d/%d ===", loop_num, args.loops)
-            run_apply_pipeline(db, args, config, answers, apply_cfg, threshold)
+            run_apply_pipeline(db, args, config, answers, apply_cfg, threshold, resume_text)
     finally:
         db.close()
 
 
 def run_apply_pipeline(db: JobDatabase, args, config: dict, answers: dict, apply_cfg: dict,
-                       threshold: float):
+                       threshold: float, resume_text: str):
     """Core apply pipeline: load → filter → group → apply."""
     jobs = _load_jobs(db, args, threshold)
     if not jobs:
@@ -479,7 +484,7 @@ def run_apply_pipeline(db: JobDatabase, args, config: dict, answers: dict, apply
     # Run filters on new jobs only
     validated = []
     if new_jobs:
-        validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg)
+        validated = _filter_new_jobs(new_jobs, config, db, answers, apply_cfg, resume_text)
 
     # Combine: pending first, then newly validated, then failed (retries last)
     all_jobs = already_pending + validated + already_failed
@@ -513,7 +518,7 @@ def run_apply_pipeline(db: JobDatabase, args, config: dict, answers: dict, apply
     print()
 
     # Apply
-    _apply_jobs(jobs_by_type, config, db, answers, apply_cfg)
+    _apply_jobs(jobs_by_type, config, db, answers, apply_cfg, resume_text)
 
 
 if __name__ == "__main__":

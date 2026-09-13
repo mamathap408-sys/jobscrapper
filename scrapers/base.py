@@ -18,17 +18,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class JobProfile:
-    """The user's job search profile, loaded from config.yaml."""
-    title: str
-    skills: list[str]
-    tools: list[str]
-    experience_years: float
-    location_preference: str
-    additional_criteria: str = ""
-
-
-@dataclass
 class JobPosting:
     """Represents a single job posting scraped from a career portal.
 

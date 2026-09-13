@@ -1,10 +1,10 @@
 """
 matcher.py — GenAI Job Matching
 =================================
-Scores job postings against the user's profile using a GenAI LLM.
+Scores job postings against the candidate resume + rubric using a GenAI LLM.
 
 How it works:
-  1. Takes the user's profile (skills, experience, preferences) from config.yaml
+  1. Takes scoring_instructions (embedded candidate resume + rubric) from config.yaml
   2. Takes a batch of new job postings (up to 5 at a time)
   3. Builds a prompt asking the LLM to score each job 1-10 and explain why
   4. Sends the prompt to the GenAI Gateway (via GenAIClient)
@@ -15,7 +15,8 @@ How it works:
 import json
 import logging
 
-from scrapers.base import JobPosting, JobProfile
+from config.loader import load_exp_additional_bullets
+from scrapers.base import JobPosting
 from services.genai_client import GenAIClient
 
 logger = logging.getLogger(__name__)
@@ -23,37 +24,6 @@ logger = logging.getLogger(__name__)
 # Send up to 5 jobs per LLM call to reduce API usage and costs
 _BATCH_SIZE = 5
 _MAX_JOB_DESCRIPTION_CHARS = 20000
-
-
-def _build_profile_text(profiles: list[JobProfile]) -> str:
-    """Format the user's profiles into a readable text block for the LLM prompt.
-
-    Args:
-        profiles: List of JobProfile objects loaded from config.yaml.
-
-    Returns:
-        A formatted string with each profile numbered, e.g.:
-            --- Profile 1: Software Developer ---
-            Title: Software Developer
-            Skills: Java, Spring Boot, Python
-            ...
-    """
-    sections = []
-    for i, profile in enumerate(profiles, 1):
-        skills = ", ".join(profile.skills)
-        tools = ", ".join(profile.tools)
-        text = (
-            f"--- Profile {i}: {profile.title} ---\n"
-            f"Title: {profile.title or 'N/A'}\n"
-            f"Skills: {skills}\n"
-            f"Experience: {profile.experience_years} years\n"
-            f"Location preference: {profile.location_preference or 'Any'}\n"
-            f"Additional criteria:\n{profile.additional_criteria or 'None'}"
-        )
-        if tools:
-            text += f"\nTools: {tools}"
-        sections.append(text)
-    return "\n\n".join(sections)
 
 
 def _build_jobs_text(jobs: list[JobPosting]) -> str:
@@ -105,9 +75,8 @@ class JobMatcher:
         genai_cfg = config["genai"]
         self._client = GenAIClient(genai_cfg)
         self._threshold = genai_cfg.get("match_threshold", 6)
-        self._profiles = config["profiles"]
-        self._profile_text = _build_profile_text(self._profiles)
         self._scoring_instructions = config["scoring_instructions"]
+        self._additional_experience = load_exp_additional_bullets(config)
 
     @property
     def threshold(self) -> int:
@@ -146,6 +115,9 @@ class JobMatcher:
         scoring_section = (
             "## Scoring Instructions\n"
             f"{self._scoring_instructions}\n\n"
+            "## Additional Candidate Experience Details (context only — use to inform role\n"
+            "classification and disqualify checks, do not treat as separate resume entries)\n"
+            f"{self._additional_experience}\n\n"
         )
 
         prompt = (

@@ -10,7 +10,7 @@ How it works:
   4. If an env var is missing, raises ValueError (fail-fast)
 
 config.yaml contains:
-  - profiles: list of user's job profiles (skills, experience, location)
+  - scoring_instructions: candidate resume + scoring rubric sent to the LLM
   - genai: LLM gateway credentials and model settings
   - email: sender/recipient Gmail addresses
   - schedule: how often to check and delay between sites
@@ -26,8 +26,6 @@ import re
 from pathlib import Path
 
 import yaml
-
-from scrapers.base import JobProfile
 
 # Paths are relative to this file's directory (the project root)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
@@ -77,22 +75,7 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     """
     with open(path) as f:
         raw = yaml.safe_load(f)
-    config = _resolve_env_vars(raw)
-
-    profiles_raw = config.get("profiles", [])
-    config["profiles"] = [
-        JobProfile(
-            title=p.get("title", ""),
-            skills=p.get("skills", []),
-            tools=p.get("tools", []),
-            experience_years=float(p.get("experience_years", 0)),
-            location_preference=p.get("location_preference", ""),
-            additional_criteria=p.get("additional_criteria", ""),
-        )
-        for p in profiles_raw
-    ]
-
-    return config
+    return _resolve_env_vars(raw)
 
 
 def load_answers(path: Path = ANSWERS_PATH) -> dict:
@@ -104,6 +87,41 @@ def load_answers(path: Path = ANSWERS_PATH) -> dict:
     with open(path) as f:
         raw = yaml.safe_load(f)
     return _resolve_env_vars(raw)
+
+
+def load_base_resume(config: dict) -> str:
+    """Load the base resume file referenced by resume_builder.base_resume.
+
+    Raises:
+        FileNotFoundError: If the configured resume file does not exist.
+    """
+    rb_cfg = config.get("resume_builder", {})
+    path = Path(rb_cfg.get("base_resume", "data/resume_v5"))
+    if not path.is_absolute():
+        path = Path(__file__).parent.parent / path
+    return path.read_text(encoding="utf-8")
+
+
+def load_exp_additional_bullets(config: dict) -> str:
+    """Load config/exp_additional_bullets.yaml and format it as a text block.
+
+    Formats each role's bullets as:
+        For "<role>":
+        - bullet
+        - bullet
+
+    Used by both the resume tailoring prompt and the job scoring prompt, so the
+    two stay in sync with a single source of truth.
+    """
+    rb_cfg = config.get("resume_builder", {})
+    path = Path(rb_cfg.get("exp_additional_bullets", "config/exp_additional_bullets.yaml"))
+    if not path.is_absolute():
+        path = Path(__file__).parent.parent / path
+    exp_bullets = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return "\n\n".join(
+        f'For "{role}":\n' + "\n".join(f"- {b}" for b in items)
+        for role, items in exp_bullets.items()
+    )
 
 
 def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:

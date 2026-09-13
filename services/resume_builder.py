@@ -22,6 +22,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from config.loader import load_exp_additional_bullets
 from services.db import JobDatabase
 from services.genai_client import GenAIClient
 
@@ -61,27 +62,19 @@ You will receive a base LaTeX resume and a job description. Make MINIMAL, surgic
 
 _EXPERIENCE_BOOST_PROMPT = """
 
-## Experience Enhancement (apply ONLY if the candidate's Amazon experience aligns with the target JD)
+## Experience Enhancement (apply ONLY to experience entries relevant to the target JD)
 
-If the Amazon "SPS Associate" experience section is relevant to this job:
+Below are extra candidate-verified bullet points, grouped by experience entry (role/company).
+For each entry below whose role is relevant to this JD:
 
-1. **Add 2-3 bullet points** to the Amazon Experience section. Pick the most JD-relevant items from this list:
+1. **Add 2-3 bullet points** to that experience entry. Pick the most JD-relevant items from its list:
 
-- Resolved 50+ daily seller escalations via phone and email, maintaining 95%+ first-contact resolution rate
-- Identified and triaged systemic defects affecting seller workflows, driving process improvements that reduced repeat contacts by 20%
-- Liaised with Merchant Investigations, Payments, and Customer Service teams to resolve cross-functional seller issues
-- Mentored and trained new associates on best practices for seller support, quality standards, and SOPs
-- Monitored SLA adherence and performance metrics (quality, productivity, handle time) to exceed team targets
-- Developed internal documentation and knowledge-base articles to streamline issue resolution
-- Managed high-volume inbound/outbound seller communications ensuring compliance with Amazon policies
-- Contributed to workflow and capacity planning during peak volume periods
-- Acted as point of escalation for complex seller account and transaction issues
-- Drove seller satisfaction improvements through proactive outreach and chronic issue resolution
+{additional_bullets}
 
-2. **Reorder experience entries**: Move the Amazon entry ABOVE the Upwork entry within the Experience section.
-3. **Reorder sections**: Move the Experience section BEFORE Technical Skills and Projects, so the order becomes: Summary → Experience → Technical Skills → Projects → Education/Achievements.
+2. **Reorder experience entries**: Move the most JD-relevant boosted entry to the TOP of the Experience section.
+3. **Reorder sections**: If any entry was boosted, move the Experience section BEFORE Technical Skills and Projects, so the order becomes: Summary → Experience → Technical Skills → Projects → Education/Achievements.
 
-If the Amazon experience is NOT relevant to the JD, ignore this section entirely and keep the resume as-is (original section and experience order).
+If none of the entries above are relevant to the JD, ignore this section entirely and keep the resume as-is (original section and experience order).
 """
 
 
@@ -101,6 +94,10 @@ class ResumeBuilder:
             self._base_resume_path = Path(__file__).parent.parent / self._base_resume_path
 
         self._base_resume = self._base_resume_path.read_text(encoding="utf-8")
+
+        bullets_text = load_exp_additional_bullets(config)
+        self._experience_boost_prompt = _EXPERIENCE_BOOST_PROMPT.format(additional_bullets=bullets_text)
+
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         # Add TeX bin directory to PATH if configured
@@ -154,7 +151,7 @@ class ResumeBuilder:
         logger.info("Regenerating resume '%s' for: %s at %s", resume_name, job["title"], job["company"])
 
         prompt = _TAILOR_PROMPT.format(base_resume=self._base_resume, job_description=jd)
-        prompt += _EXPERIENCE_BOOST_PROMPT
+        prompt += self._experience_boost_prompt
 
         try:
             tailored_tex = self._client.chat(prompt)
@@ -275,7 +272,7 @@ class ResumeBuilder:
             base_resume=self._base_resume,
             job_description=job_description,
         )
-        prompt += _EXPERIENCE_BOOST_PROMPT
+        prompt += self._experience_boost_prompt
 
         try:
             tailored_tex = self._client.chat(prompt)

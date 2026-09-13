@@ -172,12 +172,14 @@ class WorkdayApplyError(Exception):
 class WorkdayApplicant:
     """Automates Workday job application form submission."""
 
-    def __init__(self, config: dict, answers: dict, answers_raw: str = ""):
+    def __init__(self, config: dict, answers: dict, answers_raw: str = "", resume_text: str = ""):
         if not answers_raw:
             raise WorkdayApplyError("answers_raw is required — raw workday_answers.yaml content must be provided")
+        if not resume_text:
+            raise WorkdayApplyError("resume_text is required — base resume content must be provided")
         self._apply_cfg = config.get("apply", {})
         self._genai_cfg = config.get("genai", {})
-        self._profiles = config.get("profiles", [])
+        self._resume_text = resume_text
         self._answers = answers
         self._answers_raw = answers_raw
         self._work_exp = answers.get("work_experience", [])
@@ -1749,7 +1751,6 @@ class WorkdayApplicant:
 
         Sends up to 10 questions per batch. Returns answers in the same order.
         """
-        profile_text = self._build_profile_text()
         answers_content = self._answers_raw
         all_answers = []
 
@@ -1777,8 +1778,9 @@ class WorkdayApplicant:
   Company: {job.get('company', '')}
   Description: {job['job_description']}
 
-The applicant's profile:
-{profile_text}
+The applicant's background:
+Resume:
+{self._resume_text}
 
 The applicant's answers reference (use this to inform your responses):
 {answers_content}
@@ -1850,29 +1852,4 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                 f"Expected {expected_count} answers, got {len(parsed) if isinstance(parsed, list) else 'non-array'}"
             )
         return parsed
-
-    def _build_profile_text(self) -> str:
-        """Build a profile summary from config for LLM context."""
-        parts = []
-        if self._profiles:
-            p = self._profiles[0]
-            parts.append(f"  Title: {p.title}")
-            parts.append(f"  Skills: {', '.join(p.skills[:15])}")
-            parts.append(f"  Experience: {p.experience_years} years")
-            parts.append(f"  Location: {p.location_preference}")
-            if p.additional_criteria:
-                parts.append(f"  Background: {p.additional_criteria.strip()}")
-
-        for exp in self._work_exp:
-            parts.append(f"  Work: {exp['title']} at {exp['company']} ({exp.get('start_date', '')} - {exp.get('end_date', 'present')})")
-
-        edu = self._workday_fields.get("education", {})
-        if edu:
-            degree = edu.get("degree", [""])[0] if isinstance(edu.get("degree"), list) else edu.get("degree", "")
-            field = edu.get("fieldOfStudy", [""])[0] if isinstance(edu.get("fieldOfStudy"), list) else edu.get("fieldOfStudy", "")
-            school = edu.get("school", [""])[0] if isinstance(edu.get("school"), list) else edu.get("school", "")
-            year = edu.get("lastYearAttended", edu.get("endDate", ""))
-            parts.append(f"  Education: {degree} in {field} from {school} ({year})")
-
-        return "\n".join(parts)
 
