@@ -132,7 +132,7 @@ def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:
 
     Returns:
         List of (scraper_type, url) tuples.
-        Example: [("workday", "https://..."), ("generic", "https://...")]
+        Example: [("workday", "https://..."), ("amazon", "https://...")]
     """
     urls = []
     with open(path) as f:

@@ -4,7 +4,7 @@ scrapers/__init__.py — Scraper Registry
 Maps scraper type labels (from urls.yaml) to their implementing classes.
 
 When you add "workday | https://..." in urls.yaml, the "workday" label is looked up
-in SCRAPER_REGISTRY to find WorkdayScraper. Same for "generic" → GenericScraper.
+in SCRAPER_REGISTRY to find WorkdayScraper.
 
 To add a new scraper type:
   1. Create the scraper class in a new file (e.g., scrapers/greenhouse.py)
@@ -14,7 +14,6 @@ To add a new scraper type:
 """
 
 from scrapers.workday import WorkdayScraper
-from scrapers.generic import GenericScraper
 from scrapers.amazon import AmazonScraper
 from scrapers.cognizant import CognizantScraper
 from scrapers.successfactors import SuccessFactorsScraper
@@ -29,7 +28,6 @@ from scrapers.ashby import AshbyScraper
 # Maps the label used in urls.yaml → the scraper class to instantiate
 SCRAPER_REGISTRY: dict[str, type] = {
     "workday": WorkdayScraper,
-    "generic": GenericScraper,
     "amazon": AmazonScraper,
 
     "cognizant": CognizantScraper,
@@ -48,9 +46,8 @@ def get_scraper(scraper_type: str, **kwargs):
     """Create and return a scraper instance by its type label.
 
     Args:
-        scraper_type: The label from urls.yaml (e.g., "workday", "generic").
+        scraper_type: The label from urls.yaml (e.g., "workday", "amazon").
         **kwargs: Extra arguments passed to the scraper constructor.
-                  For example, GenericScraper needs browser=playwright_browser.
 
     Returns:
         An instance of the matching scraper class.
