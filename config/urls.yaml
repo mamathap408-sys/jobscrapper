@@ -7,7 +7,7 @@ workday | https://dell.wd1.myworkdayjobs.com/en-US/External
 workday | https://target.wd5.myworkdayjobs.com/en-US/targetcareers
 workday | https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced
 workday | https://aptiv.wd5.myworkdayjobs.com/en-US/APTIV_CAREERS
-workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings
+workday | https://collaborative.wd1.myworkdayjobs.com/en-US/AllOpenings  # note 2026-09-13: only 2 Bangalore roles, both Workday-consulting (non-tech), kept just in case
 workday | https://elevancehealth.wd1.myworkdayjobs.com/en-US/carelonglobal_in
 
 # ── India/Bangalore Workday portals — API-verified 2026-04-19 ──
@@ -16,7 +16,7 @@ workday | https://elevancehealth.wd1.myworkdayjobs.com/en-US/carelonglobal_in
 workday | https://cisco.wd5.myworkdayjobs.com/en-US/Cisco_Careers
 workday | https://salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site
 workday | https://hpe.wd5.myworkdayjobs.com/en-US/Jobsathpe
-workday | https://redhat.wd5.myworkdayjobs.com/en-US/Jobs
+workday | https://redhat.wd5.myworkdayjobs.com/en-US/Jobs  # note 2026-09-13: only 5 India jobs total, none in Bangalore, kept just in case
 workday | https://broadcom.wd1.myworkdayjobs.com/en-US/External_Career
 workday | https://tibco.wd5.myworkdayjobs.com/en-US/Cloud_Software_Group
 workday | https://paypal.wd1.myworkdayjobs.com/en-US/jobs
@@ -43,8 +43,8 @@ workday | https://fmr.wd1.myworkdayjobs.com/FidelityCareers
 workday | https://capitalone.wd12.myworkdayjobs.com/Capital_One
 workday | https://cmegroup.wd1.myworkdayjobs.com/en-US/cme_careers
 workday | https://svb.wd5.myworkdayjobs.com/firstcitizensindia
-workday | https://lplfinancial.wd1.myworkdayjobs.com/India_Ext
-workday | https://nationwide.wd1.myworkdayjobs.com/en-US/Nationwide_Career_India
+workday | https://lplfinancial.wd1.myworkdayjobs.com/India_Ext  # note 2026-09-13: India office is Hyderabad only, no Bangalore facet exists, kept just in case
+workday | https://nationwide.wd1.myworkdayjobs.com/en-US/Nationwide_Career_India  # note 2026-09-13: India office is Hyderabad only, kept just in case
 
 # Industrial / Healthcare (16-708 India jobs)
 workday | https://philips.wd3.myworkdayjobs.com/en-US/jobs-and-careers
@@ -55,13 +55,13 @@ workday | https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS
 workday | https://geaerospace.wd5.myworkdayjobs.com/en-US/GE_ExternalSite
 workday | https://gehc.wd5.myworkdayjobs.com/en-US/GEHC_ExternalSite
 workday | https://alcon.wd5.myworkdayjobs.com/en-US/careers_alcon
-workday | https://amgen.wd1.myworkdayjobs.com/en-US/Careers
+workday | https://amgen.wd1.myworkdayjobs.com/en-US/Careers  # note 2026-09-13: India office is Hyderabad only, no Bangalore facet exists, kept just in case
 workday | https://clarioclinical.wd1.myworkdayjobs.com/clarioclinical_careers
 
 # Consumer / Media (16-48 India jobs)
 workday | https://shell.wd3.myworkdayjobs.com/en-US/ShellCareers
 workday | https://warnerbros.wd5.myworkdayjobs.com/global
-workday | https://unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals
+workday | https://unilever.wd3.myworkdayjobs.com/en-US/Unilever_Experienced_Professionals  # note 2026-09-13: only 3 Bangalore roles (Legal, Market Ops, P&L Manager), 0 tech, kept just in case
 workday | https://fox.wd1.myworkdayjobs.com/Domestic
 workday | https://visa.wd5.myworkdayjobs.com/en-US/Visa
 workday | https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal
@@ -73,20 +73,20 @@ workday | https://autodesk.wd1.myworkdayjobs.com/en-US/Ext
 workday | https://cadence.wd1.myworkdayjobs.com/en-US/External_Careers
 workday | https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers
 workday | https://alteryx.wd108.myworkdayjobs.com/en-US/AlteryxCareers
-workday | https://kla.wd1.myworkdayjobs.com/en-US/Search
+workday | https://kla.wd1.myworkdayjobs.com/en-US/Search  # note 2026-09-13: 58 India jobs, none located in Bangalore, kept just in case
 workday | https://hitachi.wd1.myworkdayjobs.com/en-US/hitachi
 workday | https://ffive.wd5.myworkdayjobs.com/en-US/f5jobs
-workday | https://workday.wd5.myworkdayjobs.com/en-US/Workday
+workday | https://workday.wd5.myworkdayjobs.com/en-US/Workday  # note 2026-09-13: only 1 Karnataka job and it's Sales, not tech, kept just in case
 workday | https://aveva.wd3.myworkdayjobs.com/en-US/aveva_careers
-workday | https://trimble.wd1.myworkdayjobs.com/en-US/TrimbleCareers
+workday | https://trimble.wd1.myworkdayjobs.com/en-US/TrimbleCareers  # note 2026-09-13: India offices are Chennai/Pune only, no Bangalore facet, kept just in case
 workday | https://fico.wd1.myworkdayjobs.com/en-US/External
 workday | https://thales.wd3.myworkdayjobs.com/en-US/Careers
-workday | https://sprinklr.wd1.myworkdayjobs.com/en-US/Careers
+workday | https://sprinklr.wd1.myworkdayjobs.com/en-US/Careers  # note 2026-09-13: 15+ Bangalore roles checked, all sales/marketing/payroll/consulting, 0 tech, kept just in case
 workday | https://amat.wd1.myworkdayjobs.com/en-US/External
-workday | https://gartner.wd5.myworkdayjobs.com/en-US/EXT
+workday | https://gartner.wd5.myworkdayjobs.com/en-US/EXT  # note 2026-09-13: 4 Bangalore roles, all sales (Business Development/Account Executive), kept just in case
 
 # Financial Services / Fintech (19-176 India jobs)
-workday | https://franklintempleton.wd5.myworkdayjobs.com/en-US/Primary-External-1
+workday | https://franklintempleton.wd5.myworkdayjobs.com/en-US/Primary-External-1  # verified 2026-09-13: 0 India jobs — appears to have moved off Workday to its own career portal
 workday | https://mufgub.wd3.myworkdayjobs.com/en-US/MUFG-Careers
 workday | https://ntrs.wd1.myworkdayjobs.com/en-US/northerntrust
 workday | https://fil.wd3.myworkdayjobs.com/en-US/001
@@ -97,7 +97,7 @@ workday | https://synechron.wd1.myworkdayjobs.com/en-US/SynechronCareers
 # IT Services / Analytics (119-2000 India jobs)
 workday | https://genpact.wd108.myworkdayjobs.com/en-US/External_Careers
 workday | https://fractal.wd1.myworkdayjobs.com/en-US/Careers
-workday | https://wk.wd3.myworkdayjobs.com/en-US/External
+workday | https://wk.wd3.myworkdayjobs.com/en-US/External  # note 2026-09-13: 71 India jobs checked, 0 in Bangalore, kept just in case
 
 # Healthcare / MedTech (35 India jobs)
 workday | https://bdx.wd1.myworkdayjobs.com/en-IN/EXTERNAL_CAREER_SITE_INDIA
@@ -243,3 +243,80 @@ workday | https://levistraussandco.wd5.myworkdayjobs.com/External
 #workday | https://ghr.wd1.myworkdayjobs.com/lateral-ba_continuum           # 71 India jobs (Mumbai, Hyderabad) — BofA India
 #workday | https://coke.wd1.myworkdayjobs.com/en-US/coca-cola-careers       # 48 India jobs (Gurgaon, Mumbai)
 #workday | https://pg.wd5.myworkdayjobs.com/en-US/1000                      # 25 India jobs (Mumbai, Hyderabad)
+
+# ── New Workday portals — Bengaluru IT/Software, API-verified 2026-09-13 (batch 4) ──
+workday | https://proofpoint.wd5.myworkdayjobs.com/ProofpointCareers
+workday | https://mimecast.wd5.myworkdayjobs.com/Mimecast-Careers
+workday | https://allstate.wd5.myworkdayjobs.com/allstate_careers
+workday | https://xylem.wd5.myworkdayjobs.com/xylem-careers
+workday | https://adtran.wd3.myworkdayjobs.com/ADTRAN
+workday | https://takeda.wd502.myworkdayjobs.com/External
+workday | https://generalmotors.wd5.myworkdayjobs.com/Careers_GM
+workday | https://att.wd1.myworkdayjobs.com/ATTGeneral
+workday | https://verizon.wd12.myworkdayjobs.com/verizon-careers
+workday | https://pvh.wd1.myworkdayjobs.com/PVH_Careers
+workday | https://kantar.wd3.myworkdayjobs.com/en-US/KANTAR
+workday | https://transunion.wd5.myworkdayjobs.com/TransUnion
+
+# --- Workday portals confirmed but ruled out 2026-09-13 (0 Bengaluru jobs / wrong city / no tech roles) ---
+#workday | https://sailpoint.wd1.myworkdayjobs.com/SailPoint                    # India jobs in Pune only
+#workday | https://mymoose.wd1.myworkdayjobs.com/careers                       # Rapid7 — India jobs in Pune only
+#workday | https://qualys.wd5.myworkdayjobs.com/Careers                        # India jobs in Pune only
+#workday | https://paloaltonetworks.wd5.myworkdayjobs.com/panwexternalcareers  # 0 Bengaluru jobs
+#workday | https://ciena.wd5.myworkdayjobs.com/Careers                         # India jobs in Gurugram only
+#workday | https://osv-a10networks.wd503.myworkdayjobs.com/A10CareerSite       # no Bengaluru roles
+#workday | https://mdlz.wd3.myworkdayjobs.com/External                         # Mondelez — India jobs in Mumbai/Pune/Baddi, not Bangalore
+#workday | https://invesco.wd1.myworkdayjobs.com/IVZ                           # India jobs in Hyderabad only
+#workday | https://synchronyfinancial.wd5.myworkdayjobs.com/careers            # 0 Bengaluru jobs
+#workday | https://aig.wd1.myworkdayjobs.com/aig                               # 0 real India jobs
+#workday | https://pru.wd5.myworkdayjobs.com/Careers                           # Prudential Financial — 0 India jobs
+#workday | https://novartis.wd3.myworkdayjobs.com/Novartis_Careers             # Bangalore roles are sales-only
+#workday | https://pfizer.wd1.myworkdayjobs.com/PfizerCareers                  # 0 Bengaluru jobs
+#workday | https://msd.wd5.myworkdayjobs.com/SearchJobs                       # 0 real Bengaluru tech jobs
+#workday | https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS               # 0 Bengaluru jobs
+#workday | https://sanofi.wd3.myworkdayjobs.com/SanofiCareers                 # Bangalore roles are sales-only
+#workday | https://roche.wd3.myworkdayjobs.com/roche-ext                      # Bangalore roles are sales-only
+#workday | https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers           # Bangalore roles are sales/intern-only
+#workday | https://abbott.wd5.myworkdayjobs.com/abbottcareers                 # Bangalore roles are sales-only
+#workday | https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site   # 0 India jobs
+#workday | https://gdit.wd5.myworkdayjobs.com                                 # 0 Bengaluru jobs (US-only)
+#workday | https://ag.wd3.myworkdayjobs.com/Airbus                            # Bangalore roles are manufacturing/maintenance, not tech
+#workday | https://priceline.wd1.myworkdayjobs.com/BookingHoldings            # 0 India jobs
+#workday | https://homedepot.wd5.myworkdayjobs.com/CareerDepot                # 0 Bengaluru jobs
+#workday | https://cvshealth.wd1.myworkdayjobs.com/CVS_Health_Careers         # 0 Bengaluru jobs
+#workday | https://humana.wd5.myworkdayjobs.com/Humana_External_Career_Site   # 0 India jobs
+#workday | https://trendmicro.wd3.myworkdayjobs.com/External                  # India jobs in Delhi/Mumbai, not Bangalore
+#workday | https://darktrace.wd3.myworkdayjobs.com/DarktaceExternal           # 0 Bengaluru tech jobs
+#workday | https://travelers.wd5.myworkdayjobs.com/External                   # 0 India jobs
+#workday | https://equifax.wd5.myworkdayjobs.com/External                     # India jobs in Pune/Trivandrum, not Bangalore
+#workday | https://gapinc.wd1.myworkdayjobs.com/GAPINC                        # India jobs in Hyderabad only
+#workday | https://vfc.wd5.myworkdayjobs.com/vfc_careers                      # 0 Bangalore jobs
+#workday | https://etsy.wd5.myworkdayjobs.com/Etsy_Careers                    # 0 India jobs
+#workday | https://swa.wd1.myworkdayjobs.com/external                         # Southwest Airlines — India office in Hyderabad, not Bengaluru
+#workday | https://usbank.wd1.myworkdayjobs.com/US_Bank_Careers               # India tech hub in Chennai, not Bengaluru
+#workday | https://ally.wd1.myworkdayjobs.com/Ally                            # 0 India jobs
+#workday | https://truist.wd1.myworkdayjobs.com/Careers                       # 0 India jobs
+#workday | https://regions.wd5.myworkdayjobs.com/Regions_Careers              # 0 India jobs
+#workday | https://pnc.wd5.myworkdayjobs.com/External                         # 0 India jobs
+#workday | https://mtb.wd5.myworkdayjobs.com/MTB                              # 0 India jobs
+#workday | https://genmills.wd1.myworkdayjobs.com/GMI_External_Careers        # Bangalore role is sales-only
+#workday | https://conagrabrands.wd1.myworkdayjobs.com/Careers_US             # 0 India jobs
+#workday | https://campbellsoup.wd5.myworkdayjobs.com/ExternalCareers_GlobalSite # 0 India jobs
+#workday | https://comcast.wd115.myworkdayjobs.com/Comcast_Careers            # India presence is Chennai only
+#workday | https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers          # 0 Bengaluru jobs
+#workday | https://tmobile.wd1.myworkdayjobs.com/External                     # 0 real India jobs (searchText "India" false-matches "Indianapolis, Indiana")
+
+# --- Companies confirmed NOT on Workday (checked 2026-09-13, use other ATS) ---
+# Okta, Tenable, Datadog, Splunk (SmartRecruiters/Eightfold/own ATS)
+# New Relic, PagerDuty, Pure Storage (Greenhouse) | Freshworks (SmartRecruiters) | Twilio, DocuSign (Eightfold/iCIMS)
+# HubSpot, Nutanix (Jobvite) | NetApp (Eightfold/SuccessFactors) | Dynatrace (Lever)
+# onsemi, Cummins, Emerson, Denso (Oracle Cloud) | Qorvo, Renesas, CommScope, Skyworks (SuccessFactors/SmartRecruiters)
+# Western Digital, Seagate (SmartRecruiters/SuccessFactors) | Nokia (Oracle Cloud) | Ericsson, Lenovo (custom)
+# Extreme Networks (Jobvite) | Arista Networks (SmartRecruiters) | UBS, Charles Schwab, Kroger, PepsiCo (custom/iCIMS/Oracle)
+# BNY Mellon (Oracle Cloud) | MetLife (Avature) | Eaton (Eightfold.ai) | Parker Hannifin (ttcportals)
+# Deere & Co, Colgate-Palmolive (SuccessFactors) | Estee Lauder, Marriott, Hilton, Delta (Eightfold/Oracle/Avature)
+# Lockheed Martin, L3Harris, Continental AG, ZF, Ford (custom/SmartRecruiters/Oracle) | Fortinet (Oracle HCM)
+# Check Point, Barracuda, SentinelOne (custom/Jobvite/Greenhouse) | Elastic, MongoDB, Snowflake, Databricks, Palantir, UiPath, Coupa, Anaplan (Greenhouse/Lever/Ashby)
+# Informatica (redirects to Salesforce) | Teradata (GR8PEOPLE) | Zurich, Munich Re, Swiss Re (SAP/custom) | Liberty Mutual, AXA (iCIMS)
+# Under Armour (SuccessFactors) | Wayfair, eBay main site (Phenom/gated) | Nielsen (SuccessFactors+Lever) | Moody's, Publicis Sapient, Experian (custom/SmartRecruiters)
+# Walgreens, American Airlines, United Airlines, Air France-KLM, Lufthansa, Kellanova, Hershey (custom ATS, no Workday tenant found)
