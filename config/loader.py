@@ -4,10 +4,7 @@ config.py — Configuration Loader
 Loads settings from config.yaml and portal URLs from urls.yaml.
 
 How it works:
-  1. Reads config.yaml using PyYAML
-  2. Recursively scans all string values for ${VAR_NAME} patterns
-  3. Replaces them with actual environment variable values
-  4. If an env var is missing, raises ValueError (fail-fast)
+  Reads config.yaml using PyYAML and returns it as a dict.
 
 config.yaml contains:
   - scoring_instructions: candidate resume + scoring rubric sent to the LLM
@@ -21,7 +18,6 @@ urls.yaml format:
   Lines starting with # are ignored (comments)
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -32,61 +28,25 @@ CONFIG_PATH = Path(__file__).parent / "config.yaml"
 URLS_PATH = Path(__file__).parent / "urls.yaml"
 ANSWERS_PATH = Path(__file__).parent / "workday_answers.yaml"
 
-# Regex to match ${VAR_NAME} patterns in config values
-_ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)}")
-
-
-def _resolve_env_vars(value):
-    """Recursively replace ${VAR_NAME} placeholders with environment variable values.
-
-    Walks through the entire config tree (dicts, lists, strings) and substitutes
-    any ${VAR_NAME} with the value of that environment variable.
-
-    Args:
-        value: Can be a string, dict, list, or any other type.
-               Only strings are checked for ${...} patterns.
-
-    Returns:
-        The same structure with all env var references resolved.
-
-    Raises:
-        ValueError: If a referenced env var is not set in the environment.
-    """
-    if isinstance(value, str):
-        def _replace(match):
-            var_name = match.group(1)
-            env_val = os.environ.get(var_name)
-            if env_val is None:
-                raise ValueError(f"Environment variable '{var_name}' is not set")
-            return env_val
-        return _ENV_VAR_PATTERN.sub(_replace, value)
-    if isinstance(value, dict):
-        return {k: _resolve_env_vars(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_resolve_env_vars(item) for item in value]
-    return value
-
 
 def load_config(path: Path = CONFIG_PATH) -> dict:
-    """Load config.yaml and resolve any ${ENV_VAR} references.
+    """Load config.yaml.
 
     Returns:
-        dict: The fully resolved configuration dictionary.
+        dict: The configuration dictionary.
     """
     with open(path) as f:
-        raw = yaml.safe_load(f)
-    return _resolve_env_vars(raw)
+        return yaml.safe_load(f)
 
 
 def load_answers(path: Path = ANSWERS_PATH) -> dict:
-    """Load workday_answers.yaml (personal data + Q&A for auto-apply) and resolve env vars.
+    """Load workday_answers.yaml (personal data + Q&A for auto-apply).
 
     Returns:
-        dict: The fully resolved answers dictionary.
+        dict: The answers dictionary.
     """
     with open(path) as f:
-        raw = yaml.safe_load(f)
-    return _resolve_env_vars(raw)
+        return yaml.safe_load(f)
 
 
 def load_base_resume(config: dict) -> str:
@@ -128,7 +88,9 @@ def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:
     """Load urls.yaml and parse each line into (scraper_type, url) pairs.
 
     Format per line: "scraper_type | url"
-    Blank lines and lines starting with # are skipped.
+    Blank lines and full-line comments (starting with #) are skipped. Inline
+    comments after the URL (" # note...") are stripped, so trailing notes don't
+    become part of the URL.
 
     Returns:
         List of (scraper_type, url) tuples.
@@ -140,6 +102,9 @@ def load_urls(path: Path = URLS_PATH) -> list[tuple[str, str]]:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
+            # Drop any inline comment (whitespace followed by '#' to end of line).
+            # Requiring leading whitespace avoids truncating a real URL fragment.
+            line = re.split(r"\s+#", line, maxsplit=1)[0].strip()
             parts = line.split("|", 1)
             if len(parts) != 2:
                 continue
