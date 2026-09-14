@@ -388,9 +388,6 @@ def main():
 
     # Graceful shutdown: clean up all resources
     logger.info("Shutting down...")
-    if resume_builder:
-        resume_builder.close()
-    matcher.close()          # Close httpx client
     db.close()               # Close SQLite connection
     logger.info("Goodbye.")
 

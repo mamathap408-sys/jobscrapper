@@ -18,8 +18,9 @@ import tempfile
 from pathlib import Path
 
 from config import load_config
+from config.loader import load_exp_additional_bullets
 from services.db import JobDatabase
-from services.genai_client import GenAIClient
+from services.genai_queries import GenAIQueries
 from services.resume_builder import OUTPUT_DIR
 
 logging.basicConfig(
@@ -28,10 +29,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("regen_resume")
-
-def load_tailor_prompt():
-    from services.resume_builder import _TAILOR_PROMPT, _EXPERIENCE_BOOST_PROMPT
-    return _TAILOR_PROMPT + _EXPERIENCE_BOOST_PROMPT
 
 
 def compile_tex_to_pdf(tex_path: Path, output_dir: Path) -> Path | None:
@@ -115,30 +112,20 @@ def main():
     if not base_resume_path.is_absolute():
         base_resume_path = Path(__file__).parent / base_resume_path
     base_resume = base_resume_path.read_text(encoding="utf-8")
-
-    tailor_prompt = load_tailor_prompt()
-    prompt = tailor_prompt.format(base_resume=base_resume, job_description=job_description)
+    additional_bullets = load_exp_additional_bullets(config)
 
     # Call LLM
     genai_cfg = config["genai"]
-    client = GenAIClient(genai_cfg)
+    queries = GenAIQueries(genai_cfg)
     print("Calling LLM to regenerate...")
     try:
-        tailored_tex = client.chat(prompt)
+        tailored_tex = queries.tailor_resume(base_resume, job_description, additional_bullets)
     except Exception as e:
         print(f"Error: LLM call failed: {e}", file=sys.stderr)
         db.close()
         sys.exit(1)
 
-    # Strip markdown fences
-    tailored_tex = tailored_tex.strip()
-    if tailored_tex.startswith("```"):
-        first_newline = tailored_tex.find("\n")
-        tailored_tex = tailored_tex[first_newline + 1:]
-    if tailored_tex.endswith("```"):
-        tailored_tex = tailored_tex[:-3].rstrip()
-
-    if "\\documentclass" not in tailored_tex:
+    if not tailored_tex:
         print("Error: LLM output doesn't look like valid LaTeX.", file=sys.stderr)
         db.close()
         sys.exit(1)

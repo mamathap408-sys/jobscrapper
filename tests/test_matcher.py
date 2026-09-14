@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from scrapers.base import JobPosting
-from services.matcher import _build_jobs_text
+from services.genai_queries import GenAIQueries
 
 
 def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
@@ -38,7 +38,7 @@ def _sample_config():
 
 def test_build_jobs_text():
     jobs = [_sample_job(), _sample_job("Frontend Dev", "Other Inc")]
-    text = _build_jobs_text(jobs)
+    text = GenAIQueries._build_jobs_text(jobs)
     assert "Senior Backend Engineer" in text
     assert "Frontend Dev" in text
     assert "Job 1" in text
@@ -50,8 +50,8 @@ def test_build_jobs_text_trims_long_description_and_logs_warning():
     jobs = [_sample_job()]
     jobs[0].description = long_description
 
-    with patch("services.matcher.logger.warning") as mock_warning:
-        text = _build_jobs_text(jobs)
+    with patch("services.genai_queries.logger.warning") as mock_warning:
+        text = GenAIQueries._build_jobs_text(jobs)
 
     assert long_description[:20000] in text
     assert long_description not in text
