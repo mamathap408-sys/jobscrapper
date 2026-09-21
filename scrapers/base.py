@@ -33,6 +33,9 @@ class JobPosting:
         url:         Direct link to the job posting page (for the email digest).
         posted_date: When the job was posted, e.g., "2024-01-15". Empty if unavailable.
         job_num:     Job number / requisition ID from the portal (e.g., "R1308276"). Empty if unavailable.
+        scraper:     The scraper type this job came from (e.g. "workday"). Tagged by
+                     the watcher after scraping; used to gate per-source behavior
+                     such as resume generation. Empty if not set.
     """
     job_id: str
     title: str
@@ -42,6 +45,7 @@ class JobPosting:
     url: str
     posted_date: str
     job_num: str = ""
+    scraper: str = ""
 
 
 def generate_fallback_id(text: str) -> str:

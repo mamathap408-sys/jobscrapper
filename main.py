@@ -148,14 +148,30 @@ def _create_scraper(scraper_type: str, config: dict, url: str, wd_locations: dic
     return get_scraper(scraper_type, max_age_days=max_age_days)
 
 
+def _resume_eligible(scraper: str, enabled_scrapers: set) -> bool:
+    """Whether a resume should be generated for a job from this scraper.
+
+    Driven entirely by config's resume_builder.enabled_scrapers:
+      - empty list  → no resumes for anyone
+      - otherwise   → generate for jobs whose scraper is listed, plus jobs tagged
+                      "always" (e.g. older DB rows with no stored scraper), so we
+                      don't silently stop generating for them.
+    """
+    if not enabled_scrapers:
+        return False
+    return scraper == "always" or scraper in enabled_scrapers
+
+
 def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
-                    resume_builder: ResumeBuilder | None = None, attach_resume: bool = False):
+                    resume_builder: ResumeBuilder | None = None, attach_resume: bool = False,
+                    enabled_scrapers: set | None = None):
     """Send notifications for jobs that were scored but never emailed.
 
     This handles the case where a previous run saved jobs to the DB and then
     crashed or exited before the email was sent. Called once at startup before
     the first cycle.
     """
+    enabled_scrapers = enabled_scrapers or set()
     pending_matches, pending_filtered = db.get_unnotified_jobs()
     if not pending_matches and not pending_filtered:
         return
@@ -177,6 +193,9 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
                 description=row.get("job_description") or "",
                 url=row["url"],
                 posted_date="",
+                # Pre-column rows have NULL scraper; mark them "always" so they still
+                # get a resume (we can't know their true source).
+                scraper=row.get("scraper") or "always",
             )
             result.append((job, row["match_score"], row["match_reason"] or ""))
         return result
@@ -186,7 +205,15 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
 
     pdfs = {}
     if attach_resume and resume_builder and matches:
-        pdfs = resume_builder.generate_for_matches(matches)
+        # Only generate for jobs that don't already have a resume (resume_name NULL) —
+        # a prior run may have generated them before crashing pre-email.
+        needs_resume = {row["job_id"] for row in pending_matches if not row.get("resume_name")}
+        gen_matches = [
+            (job, s, r) for job, s, r in matches
+            if _resume_eligible(job.scraper, enabled_scrapers) and job.job_id in needs_resume
+        ]
+        if gen_matches:
+            pdfs = resume_builder.generate_for_matches(gen_matches)
 
     try:
         notifier.send_digest(matches, filtered=filtered, attachments=pdfs or None)
@@ -216,6 +243,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
     delay = config["schedule"].get("delay_between_sites_seconds", 5)
     digest_mode = config.get("email", {}).get("digest_mode", "per_company")
     attach_resume = config.get("resume_builder", {}).get("attach_resume", False)
+    enabled_scrapers = set(config.get("resume_builder", {}).get("enabled_scrapers") or [])
     wd_locations = workday_locations or {}
     auto_apply = config.get("apply", {}).get("auto_apply", False)
     total_matches = 0
@@ -247,7 +275,10 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
         pdfs = {}
         if attach_resume and resume_builder and matches:
-            pdfs = resume_builder.generate_for_matches(matches)
+            # Only generate/attach resumes for jobs from enabled scrapers (config).
+            gen_matches = [(job, s, r) for job, s, r in matches if _resume_eligible(job.scraper, enabled_scrapers)]
+            if gen_matches:
+                pdfs = resume_builder.generate_for_matches(gen_matches)
         notifier.send_digest(matches, filtered=filtered, company=company, attachments=pdfs or None)
         for job, _, _ in matches + filtered:
             db.mark_notified(job.job_id)
@@ -267,6 +298,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
 
             # Step 1: Scrape all jobs from this portal
             jobs = scraper.scrape(url)
+            for job in jobs:
+                job.scraper = scraper_type  # tag source for per-scraper gating (e.g. resumes)
 
             # Step 2: Filter to new jobs (also updates last_seen for known ones)
             new_jobs = db.filter_new(jobs)
@@ -372,7 +405,8 @@ def main():
     logger.info("Scheduling checks every %d minutes", interval)
 
     # Send any notifications that failed in a previous run
-    _notify_pending(db, notifier, resume_builder, rb_cfg.get("attach_resume", False))
+    enabled_scrapers = set(rb_cfg.get("enabled_scrapers") or [])
+    _notify_pending(db, notifier, resume_builder, rb_cfg.get("attach_resume", False), enabled_scrapers)
 
     # Run the first check immediately (don't wait for the timer)
     run_cycle(config, db, matcher, notifier, workday_locations, resume_builder)

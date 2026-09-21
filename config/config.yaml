@@ -1,20 +1,6 @@
 scoring_instructions: |
   Follow these steps IN ORDER for each job. Do not skip steps or freelance.
-
-  ## Candidate Resume
-
-  Education: B.Tech (2022 batch)
-  Location: Bangalore | Open to remote
-  Work Experience:
-    - Software Engineer, Upwork (Freelance), May 2026 -- Present
-      Backend bug fixes (Python/FastAPI) for a Microsoft Research AI study; AI-generated code review
-      for RLHF pipelines (Labelbox, Scale AI); security/vulnerability testing of AI systems
-    - Sr. Seller Partner Support Associate, Amazon, June 2024 -- Sep 2025 (1.5 years)
-      RCA, API debugging, troubleshooting, escalation handling, ticketing systems (JIRA, ServiceNow)
-  Technical Skills: Java, Python, SQL, Spring Boot, PostgreSQL, SQLite, Docker, Git, Playwright, LLM Integration, OAuth2
-  Note: Freelance software engineer (backend debugging, AI code review) plus prior Amazon support
-    experience; still early-career for SWE roles, no full-time SWE role yet.
-
+  
   ## Step 1: DISQUALIFY CHECK (check top-to-bottom, FIRST match → assign score and STOP)
   - Specialized domain candidate cannot do (CA, nurse, lawyer, licensed engineer) → score 1
   - Title indicates extreme seniority (VP, Director, Principal, Fellow, Chief, Head of, Sr. Manager, Staff Engineer) or requires PhD → score 1
@@ -81,6 +67,14 @@ resume_builder:
   base_resume: "data/resume_v5"
   exp_additional_bullets: "config/exp_additional_bullets.yaml"  # extra Amazon bullets the tailoring LLM can pick from
   attach_resume: true               # when true, generate + attach PDFs before sending email
+  enabled_scrapers:                  # only generate/attach resumes for jobs from these scraper types
+    - workday
+    - successfactors
+    - google
+    - goldmansachs
+    - greenhouse
+    - lever
+    - ashby
   tex_bin: "/Library/TeX/texbin"     # path to TeX binaries (pdflatex), added to PATH if set
 
 schedule:
