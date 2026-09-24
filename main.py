@@ -348,8 +348,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
                 total_filtered += len(filtered)
 
             # Clean up scraper resources (e.g., httpx client connections)
-            if hasattr(scraper, "close"):
-                scraper.close()
+            scraper.close()
 
         except RuntimeError:
             raise  # Fatal errors (e.g. GenAI retries exhausted) — stop the scraper

@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -71,20 +71,12 @@ def _parse_sf_date(date_str: str) -> str:
         return ""
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
 class HCLScraper(BaseScraper):
     """Scrapes HCLTech careers via their SuccessFactors recruiting JSON API."""
 
     def __init__(
         self,
         cities: set[str] | None = None,
-        max_age_days: int | None = None,
         max_pages: int = _MAX_PAGES,
         **kwargs,
     ):
@@ -93,23 +85,11 @@ class HCLScraper(BaseScraper):
         Args:
             cities:       Set of custprimecity values to match.
                           Defaults to Bengaluru/Bangalore/Hyderabad variants.
-            max_age_days: Only include jobs posted within this many days. None = no limit.
             max_pages:    Maximum API pages to fetch (10 results/page). Safety limit.
         """
+        super().__init__(headers={"Content-Type": "application/json"}, **kwargs)
         self._cities = {c.lower() for c in (cities or _DEFAULT_CITIES)}
-        self._max_age_days = max_age_days
         self._max_pages = max_pages
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-                "Content-Type": "application/json",
-            },
-            follow_redirects=True,
-        )
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape HCL jobs for target cities from the recruiting API.
@@ -293,7 +273,7 @@ class HCLScraper(BaseScraper):
             re.DOTALL | re.IGNORECASE,
         )
         if match:
-            return _strip_html(match.group(1))
+            return strip_html(match.group(1))
 
         # Fallback: look for content:encoded or description meta
         match = re.search(r'<meta\s+name="description"\s+content="([^"]*)"', html, re.IGNORECASE)
@@ -301,7 +281,3 @@ class HCLScraper(BaseScraper):
             return match.group(1).strip()
 
         return ""
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

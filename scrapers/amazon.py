@@ -23,46 +23,21 @@ Example:
 """
 
 import logging
-import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html
 
 logger = logging.getLogger(__name__)
-
-
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
 
 
 class AmazonScraper(BaseScraper):
     """Scrapes Amazon Jobs via their public JSON search API (no browser needed)."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
-        """Initialize with optional age filter.
-
-        Args:
-            max_age_days: Only include jobs posted within this many days.
-                          None = no limit.
-        """
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(headers={"Accept": "application/json"}, **kwargs)
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all job postings from Amazon Jobs.
@@ -150,7 +125,7 @@ class AmazonScraper(BaseScraper):
                 item.get("basic_qualifications", ""),
                 item.get("preferred_qualifications", ""),
             ]
-            description = _strip_html(" ".join(part for part in desc_parts if part))
+            description = strip_html(" ".join(part for part in desc_parts if part))
 
             job_path = item.get("job_path", "")
             job_url = f"https://www.amazon.jobs{job_path}" if job_path else ""
@@ -183,7 +158,3 @@ class AmazonScraper(BaseScraper):
             return (now - dt).days
         except ValueError:
             return None
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

@@ -19,13 +19,12 @@ Optional client-side filters can be provided in the board URL query string:
 """
 
 import logging
-import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company
 
 logger = logging.getLogger(__name__)
 
@@ -37,38 +36,12 @@ _DEFAULT_CITY_ALIASES = {
 }
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html or "")
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
-def _normalize_company(token: str) -> str:
-    """Turn a Lever site token into a readable fallback company name."""
-    text = token.replace("-", " ").replace("_", " ").strip()
-    return " ".join(part.capitalize() for part in text.split()) or token
-
-
 class LeverScraper(BaseScraper):
     """Scrapes Lever job boards via the public postings API."""
 
-    def __init__(self, cities: list[str] | None = None, max_age_days: int | None = None, **kwargs):
+    def __init__(self, cities: list[str] | None = None, **kwargs):
+        super().__init__(headers={"Accept": "application/json"}, **kwargs)
         self._cities = {city.strip().lower() for city in (cities or sorted(_DEFAULT_CITY_ALIASES)) if city.strip()}
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-            },
-            follow_redirects=True,
-        )
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Fetch all public jobs for a Lever board URL."""
@@ -87,7 +60,7 @@ class LeverScraper(BaseScraper):
             logger.error("Lever API returned non-JSON response (status %d)", resp.status_code)
             return []
 
-        company = _normalize_company(site)
+        company = normalize_company(site)
         jobs = []
         now = datetime.now(timezone.utc)
         for item in data if isinstance(data, list) else []:
@@ -144,13 +117,13 @@ class LeverScraper(BaseScraper):
         if plain:
             desc_parts.append(plain)
         elif html:
-            desc_parts.append(_strip_html(html))
+            desc_parts.append(strip_html(html))
 
         for section in item.get("lists") or []:
             if not isinstance(section, dict):
                 continue
             heading = str(section.get("text", "")).strip()
-            content = _strip_html(str(section.get("content", "")).strip())
+            content = strip_html(str(section.get("content", "")).strip())
             if heading and content:
                 desc_parts.append(f"{heading}: {content}")
             elif content:
@@ -212,17 +185,3 @@ class LeverScraper(BaseScraper):
         if not haystack.strip():
             return True
         return any(city in haystack for city in self._cities) or "remote" in haystack
-
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
-    def close(self):
-        """Close the shared HTTP client."""
-        self._client.close()

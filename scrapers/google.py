@@ -23,13 +23,12 @@ Note: "Bangalore India" and "Bengaluru India" return identical results.
 
 import json
 import logging
-import re
 import time
 from datetime import datetime, timezone
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +38,6 @@ _PAGE_SIZE = 20
 
 # Google normalizes "Bengaluru" to "Bangalore", so no need to query both
 _DEFAULT_LOCATIONS = ["Bangalore India", "Hyderabad India"]
-
-
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
 
 
 def _safe_field(job: list, idx: int, sub_idx: int | None = None) -> str:
@@ -64,26 +56,15 @@ def _safe_field(job: list, idx: int, sub_idx: int | None = None) -> str:
 class GoogleScraper(BaseScraper):
     """Scrapes Google Careers via their internal batchexecute RPC API."""
 
-    def __init__(self, locations: list[str] | None = None, max_age_days: int | None = None, **kwargs):
-        """Initialize with location search terms and optional age limit.
+    def __init__(self, locations: list[str] | None = None, **kwargs):
+        """Initialize with location search terms.
 
         Args:
             locations:    List of location strings for Google's search.
                           Defaults to ["Bangalore India", "Hyderabad India"].
-            max_age_days: Only include jobs posted within this many days. None = no limit.
         """
+        super().__init__(**kwargs)
         self._locations = locations or _DEFAULT_LOCATIONS
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
-        )
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all Google jobs for configured locations.
@@ -239,7 +220,7 @@ class GoogleScraper(BaseScraper):
             if preferred:
                 desc_parts.append(preferred)
 
-            description = _strip_html(" ".join(desc_parts))
+            description = strip_html(" ".join(desc_parts))
 
             # Posted date from field [12] (unix timestamp)
             posted_date = ""
@@ -262,17 +243,3 @@ class GoogleScraper(BaseScraper):
         except (IndexError, TypeError) as e:
             logger.warning("Failed to parse Google job: %s", e)
             return None
-
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

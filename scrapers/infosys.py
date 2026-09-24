@@ -31,13 +31,12 @@ Example urls.yaml entry:
 """
 
 import logging
-import re
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -45,35 +44,11 @@ _API_BASE = "https://intapgateway.infosysapps.com/careersci/search/intapjbsrch/g
 _JOB_DETAIL_BASE = "https://career.infosys.com/jobdesc?jobReferenceCode="
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
 class InfosysScraper(BaseScraper):
     """Scrapes Infosys careers via their internal REST API (no browser needed)."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
-        """Initialize with optional age filter.
-
-        Args:
-            max_age_days: Only include jobs posted within this many days.
-                          None = no limit.
-        """
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(headers={"Accept": "application/json"}, **kwargs)
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all job postings from Infosys careers.
@@ -158,7 +133,7 @@ class InfosysScraper(BaseScraper):
                       "educationalRequirement"):
             val = item.get(field, "")
             if val and val.strip():
-                desc_parts.append(_strip_html(val))
+                desc_parts.append(strip_html(val))
         description = "\n".join(desc_parts)
 
         # Skills metadata — append if present
@@ -205,17 +180,3 @@ class InfosysScraper(BaseScraper):
             return dt.strftime("%Y-%m-%d")
         except ValueError:
             return ""
-
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()
