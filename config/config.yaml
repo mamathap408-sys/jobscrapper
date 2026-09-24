@@ -118,18 +118,15 @@ greenhouse:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 10
 
 lever:
   cities:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 10
 
 ashby:
   cities:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 10

@@ -1828,6 +1828,10 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                     all_answers.append(str(answer))
 
             except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.error(
+                    "  Batch parse failed (%s: %s). Expected %d answer(s). Raw LLM response:\n%s",
+                    type(e).__name__, e, len(batch), response,
+                )
                 raise WorkdayApplyError(f"Failed to parse LLM batch response: {e}") from e
 
         return all_answers
