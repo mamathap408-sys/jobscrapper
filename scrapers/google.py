@@ -24,11 +24,10 @@ Note: "Bangalore India" and "Bengaluru India" return identical results.
 import json
 import logging
 import time
-from datetime import datetime, timezone
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -89,17 +88,8 @@ class GoogleScraper(BaseScraper):
                     all_jobs.append(job)
             logger.info("  Google/%s: %d jobs (total available: %d)", location, len(jobs), total)
 
-        # Filter by age
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            before = len(all_jobs)
-            all_jobs = [j for j in all_jobs if self._within_age(j.posted_date, now)]
-            logger.info(
-                "Google: %d unique jobs, %d within %d days (skipped %d)",
-                before, len(all_jobs), self._max_age_days, before - len(all_jobs),
-            )
-        else:
-            logger.info("Google: %d unique jobs across locations", len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("Google: %d unique jobs across locations", len(all_jobs))
 
         return all_jobs
 
@@ -223,13 +213,7 @@ class GoogleScraper(BaseScraper):
             description = strip_html(" ".join(desc_parts))
 
             # Posted date from field [12] (unix timestamp)
-            posted_date = ""
-            if raw[12] and isinstance(raw[12], list) and raw[12][0]:
-                try:
-                    dt = datetime.fromtimestamp(raw[12][0], tz=timezone.utc)
-                    posted_date = dt.strftime("%Y-%m-%d")
-                except (ValueError, OSError):
-                    pass
+            posted_date = date_or_none(raw[12][0] if raw[12] else None)
 
             return JobPosting(
                 job_id=job_id,

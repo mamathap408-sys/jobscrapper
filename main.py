@@ -34,6 +34,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -192,7 +193,7 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
                 location=row["location"] or "",
                 description=row.get("job_description") or "",
                 url=row["url"],
-                posted_date="",
+                posted_date=None,
                 # Pre-column rows have NULL scraper; mark them "always" so they still
                 # get a resume (we can't know their true source).
                 scraper=row.get("scraper") or "always",
@@ -271,8 +272,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         """
         if not matches and not filtered:
             return
-        matches.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
-        filtered.sort(key=lambda x: (x[1], x[0].posted_date or ""), reverse=True)
+        matches.sort(key=lambda x: (x[1], x[0].posted_date or date.min), reverse=True)
+        filtered.sort(key=lambda x: (x[1], x[0].posted_date or date.min), reverse=True)
         pdfs = {}
         if attach_resume and resume_builder and matches:
             # Only generate/attach resumes for jobs from enabled scrapers (config).
@@ -303,7 +304,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
 
             # Step 2: Filter to new jobs (also updates last_seen for known ones)
             new_jobs = db.filter_new(jobs)
-            logger.info("[%s] %s — %d total, %d new", scraper_type, url, len(jobs), len(new_jobs))
+            logger.info("[%s] %s — %d jobs, %d new", scraper_type, url, len(jobs), len(new_jobs))
 
             if new_jobs:
                 # Step 3: Fetch full descriptions if the scraper supports it

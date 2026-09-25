@@ -1,5 +1,7 @@
 """Tests for Ashby scraper."""
 
+from datetime import date
+
 from scrapers.ashby import AshbyScraper
 
 
@@ -41,7 +43,7 @@ def test_parse_job():
     assert "Bengaluru, India" in job.location
     assert "Remote" in job.location
     assert "platform tooling" in job.description
-    assert job.posted_date == "2026-05-01"
+    assert job.posted_date == date(2026, 5, 1)
     assert job.job_num == "JP-10"
     scraper.close()
 

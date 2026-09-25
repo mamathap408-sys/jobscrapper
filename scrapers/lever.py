@@ -19,12 +19,11 @@ Optional client-side filters can be provided in the board URL query string:
 """
 
 import logging
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company
+from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,6 @@ class LeverScraper(BaseScraper):
 
         company = normalize_company(site)
         jobs = []
-        now = datetime.now(timezone.utc)
         for item in data if isinstance(data, list) else []:
             job = self._parse_job(item, company)
             if not job:
@@ -71,10 +69,9 @@ class LeverScraper(BaseScraper):
                 continue
             if not self._matches_filters(job, item, filters):
                 continue
-            if self._max_age_days is not None and not self._within_age(job.posted_date, now):
-                continue
             jobs.append(job)
 
+        jobs = [job for job in jobs if self._within_age(job.posted_date)]
         logger.info("Lever/%s: %d jobs", site, len(jobs))
         return jobs
 
@@ -131,7 +128,7 @@ class LeverScraper(BaseScraper):
 
         description = "\n".join(part for part in desc_parts if part)
         job_url = str(item.get("hostedUrl") or item.get("applyUrl") or "").strip()
-        posted_date = self._parse_timestamp(item.get("createdAt") or item.get("updatedAt"))
+        posted_date = date_or_none(item.get("createdAt") or item.get("updatedAt"))
 
         return JobPosting(
             job_id=job_id,
@@ -143,20 +140,6 @@ class LeverScraper(BaseScraper):
             posted_date=posted_date,
             job_num=job_id,
         )
-
-    @staticmethod
-    def _parse_timestamp(value) -> str:
-        """Parse Lever timestamps (usually milliseconds since epoch) to YYYY-MM-DD."""
-        if value in (None, ""):
-            return ""
-        try:
-            ts = int(value)
-            if ts > 10_000_000_000:
-                ts = ts / 1000
-            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-            return dt.strftime("%Y-%m-%d")
-        except (TypeError, ValueError, OSError):
-            return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
         """Apply team/commitment/keyword filters from the board URL."""

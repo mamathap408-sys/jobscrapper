@@ -31,12 +31,11 @@ Example urls.yaml entry:
 """
 
 import logging
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -86,19 +85,8 @@ class InfosysScraper(BaseScraper):
             if job:
                 all_jobs.append(job)
 
-        # Filter by age
-        before_filter = len(all_jobs)
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            all_jobs = [j for j in all_jobs if self._within_age(j.posted_date, now)]
-            skipped = before_filter - len(all_jobs)
-            logger.info(
-                "Infosys: %d total jobs, %d within %d days, %d older (skipped)",
-                before_filter, len(all_jobs), self._max_age_days, skipped,
-            )
-        else:
-            logger.info("Infosys: %d total jobs", len(all_jobs))
-
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("Infosys: %d total jobs", len(all_jobs))
         return all_jobs
 
     @staticmethod
@@ -145,9 +133,7 @@ class InfosysScraper(BaseScraper):
         if skills_parts:
             description += "\nSkills: " + "; ".join(skills_parts)
 
-        # Posted date
-        created_on = item.get("createdOn", "")
-        posted_date = self._parse_created_on(created_on)
+        posted_date = date_or_none(item.get("createdOn"))
 
         job_url = f"{_JOB_DETAIL_BASE}{ref_code}"
         requisition_id = str(item.get("requisitionId", ""))
@@ -162,21 +148,3 @@ class InfosysScraper(BaseScraper):
             posted_date=posted_date,
             job_num=requisition_id,
         )
-
-    @staticmethod
-    def _parse_created_on(created_on: str) -> str:
-        """Parse Infosys ISO timestamp to YYYY-MM-DD date string.
-
-        Args:
-            created_on: e.g., "2026-04-30T10:28:48.282"
-
-        Returns:
-            Date string like "2026-04-30", or empty string on error.
-        """
-        if not created_on:
-            return ""
-        try:
-            dt = datetime.fromisoformat(created_on.replace("Z", "+00:00"))
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""

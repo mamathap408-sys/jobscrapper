@@ -23,13 +23,12 @@ Companies using this platform (confirmed with India jobs):
 
 import logging
 import re
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -44,25 +43,6 @@ _DEFAULT_RSS_ROWS = 5000
 _NAMESPACES = {
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
-
-
-def _parse_rfc2822_date(date_str: str) -> str:
-    """Parse RSS pubDate to YYYY-MM-DD string."""
-    if not date_str:
-        return ""
-    formats = [
-        "%a, %d %b %Y %H:%M:%S %Z",
-        "%a, %d %b %Y %H:%M:%S %z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d",
-    ]
-    for fmt in formats:
-        try:
-            dt = datetime.strptime(date_str.strip(), fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return date_str
 
 
 def _extract_rss_id(guid_text: str) -> str:
@@ -125,17 +105,8 @@ class SuccessFactorsScraper(BaseScraper):
                     seen_ids.add(job.job_id)
                     all_jobs.append(job)
 
-        # Filter by age
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            before = len(all_jobs)
-            all_jobs = [j for j in all_jobs if self._within_age(j.posted_date, now)]
-            logger.info(
-                "%s: %d unique jobs, %d within %d days (skipped %d)",
-                company, before, len(all_jobs), self._max_age_days, before - len(all_jobs),
-            )
-        else:
-            logger.info("%s: %d unique jobs across cities", company, len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("%s: %d unique jobs across cities", company, len(all_jobs))
 
         return all_jobs
 
@@ -180,7 +151,7 @@ class SuccessFactorsScraper(BaseScraper):
 
             location = self._extract_location(title, description_html)
             job_id = _extract_rss_id(guid) or _extract_rss_id(link) or title
-            posted_date = _parse_rfc2822_date(pub_date)
+            posted_date = date_or_none(pub_date)
             description = strip_html(description_html) if description_html else ""
 
             jobs.append(JobPosting(

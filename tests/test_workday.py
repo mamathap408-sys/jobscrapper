@@ -1,7 +1,18 @@
 """Tests for Workday scraper — run against a real Workday portal."""
 
-from scrapers.workday import WorkdayScraper, _parse_workday_url, _build_api_base
+import pytest
 
+from scrapers.workday import WorkdayScraper, _parse_workday_url, _build_api_base, _parse_posted_days
+
+
+
+def test_parse_posted_days():
+    assert _parse_posted_days("Posted Today") == 0
+    assert _parse_posted_days("Posted Yesterday") == 1
+    assert _parse_posted_days("Posted 2 Days Ago") == 2
+    assert _parse_posted_days("Posted 30+ Days Ago") == 30
+    with pytest.raises(ValueError, match="Unparseable Workday date"):
+        _parse_posted_days("")
 
 def test_parse_workday_url():
     url = "https://company1.wd5.myworkdayjobs.com/en-US/External"

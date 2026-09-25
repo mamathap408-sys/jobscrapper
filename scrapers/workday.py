@@ -24,6 +24,7 @@ Example:
 
 import logging
 import re
+from datetime import date, timedelta
 from urllib.parse import urlparse
 
 import httpx
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 _PAGE_SIZE = 20
 
 
-def _parse_posted_days(posted_on: str) -> int | None:
+def _parse_posted_days(posted_on: str) -> int:
     """Parse Workday's relative date string into number of days ago.
 
     Examples:
@@ -46,7 +47,10 @@ def _parse_posted_days(posted_on: str) -> int | None:
         "Posted 30+ Days Ago" → 30
 
     Returns:
-        Number of days ago, or None if the format is unrecognized.
+        Number of days ago ("30+" counts as 30).
+
+    Raises:
+        ValueError: if the format is unrecognized.
     """
     text = posted_on.lower().strip()
     if "today" in text:
@@ -56,7 +60,7 @@ def _parse_posted_days(posted_on: str) -> int | None:
     match = re.search(r"(\d+)\+?\s*days?\s*ago", text)
     if match:
         return int(match.group(1))
-    return None
+    raise ValueError(f"Unparseable Workday date: {posted_on!r}")
 
 
 def _parse_workday_url(url: str) -> tuple[str, str]:
@@ -138,20 +142,8 @@ class WorkdayScraper(BaseScraper):
                     seen_ids.add(job.job_id)
                     all_jobs.append(job)
 
-        # Filter out old jobs
-        before_filter = len(all_jobs)
-        if self._max_age_days is not None:
-            all_jobs = [
-                j for j in all_jobs
-                if (_parse_posted_days(j.posted_date) or 0) <= self._max_age_days
-            ]
-            filtered_out = before_filter - len(all_jobs)
-            logger.info(
-                "%s: %d total unique jobs, %d within %d days, %d older (skipped)",
-                company, before_filter, len(all_jobs), self._max_age_days, filtered_out,
-            )
-        else:
-            logger.info("%s: %d total unique jobs", company, len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("%s: %d total unique jobs", company, len(all_jobs))
         return all_jobs
 
     def _scrape_one_facet(
@@ -247,8 +239,11 @@ class WorkdayScraper(BaseScraper):
             bullet_fields = item.get("bulletFields", [])
             job_num = bullet_fields[0] if bullet_fields else ""
             location = item.get("locationsText", "")
-            posted_date = item.get("postedOn", "")
-
+            try:
+                posted_date = date.today() - timedelta(days=_parse_posted_days(item.get("postedOn", "")))
+            except ValueError as e:  # temporary safety net, same as base.date_or_none
+                logger.warning("%s", e)
+                posted_date = None
 
             job_url = f"{url_base}{external_path}"
 

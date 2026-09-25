@@ -23,12 +23,11 @@ Example:
 """
 
 import logging
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -69,25 +68,8 @@ class AmazonScraper(BaseScraper):
             if offset >= hits or not jobs_batch:
                 break
 
-        # Filter by age
-        before_filter = len(all_jobs)
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            filtered = []
-            for job in all_jobs:
-                days_ago = self._parse_age(job.posted_date, now)
-                if days_ago is not None and days_ago <= self._max_age_days:
-                    filtered.append(job)
-                elif days_ago is None:
-                    filtered.append(job)  # Keep jobs with unparseable dates
-            all_jobs = filtered
-            skipped = before_filter - len(all_jobs)
-            logger.info(
-                "Amazon: %d total hits, %d within %d days, %d older (skipped)",
-                hits, len(all_jobs), self._max_age_days, skipped,
-            )
-        else:
-            logger.info("Amazon: %d total hits, fetched %d", hits, len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("Amazon: %d total hits, fetched %d", hits, len(all_jobs))
 
         return all_jobs
 
@@ -117,7 +99,7 @@ class AmazonScraper(BaseScraper):
             title = item.get("title", "")
             company = item.get("company_name", "Amazon")
             location = item.get("normalized_location", "") or item.get("location", "")
-            posted_date = item.get("posted_date", "")
+            posted_date = date_or_none(item.get("posted_date"), "%B %d, %Y")  # e.g. "April 10, 2026"
 
             # Combine description fields and strip HTML
             desc_parts = [
@@ -141,20 +123,3 @@ class AmazonScraper(BaseScraper):
             ))
 
         return jobs, hits
-
-    @staticmethod
-    def _parse_age(posted_date: str, now: datetime) -> int | None:
-        """Parse Amazon's posted_date string and return days ago.
-
-        Amazon uses format like "April 10, 2026".
-
-        Returns:
-            Number of days ago, or None if unparseable.
-        """
-        if not posted_date:
-            return None
-        try:
-            dt = datetime.strptime(posted_date, "%B %d, %Y").replace(tzinfo=timezone.utc)
-            return (now - dt).days
-        except ValueError:
-            return None

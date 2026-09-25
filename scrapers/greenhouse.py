@@ -18,12 +18,11 @@ Optional client-side filters can still be provided in the board URL query string
 """
 
 import logging
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company
+from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,6 @@ class GreenhouseScraper(BaseScraper):
         company = self._extract_company(data, board_token)
 
         jobs = []
-        now = datetime.now(timezone.utc)
         for item in items:
             job = self._parse_job(item, company)
             if not job:
@@ -72,10 +70,9 @@ class GreenhouseScraper(BaseScraper):
                 continue
             if not self._matches_filters(job, item, filters):
                 continue
-            if self._max_age_days is not None and not self._within_age(job.posted_date, now):
-                continue
             jobs.append(job)
 
+        jobs = [job for job in jobs if self._within_age(job.posted_date)]
         logger.info("Greenhouse/%s: %d jobs", board_token, len(jobs))
         return jobs
 
@@ -130,9 +127,7 @@ class GreenhouseScraper(BaseScraper):
 
         description = strip_html(str(item.get("content", "")))
         job_url = str(item.get("absolute_url", "")).strip()
-        posted_date = self._parse_iso_date(
-            str(item.get("updated_at") or item.get("created_at") or "")
-        )
+        posted_date = date_or_none(item.get("updated_at") or item.get("created_at"))
 
         job_num = ""
         metadata = item.get("metadata")
@@ -156,17 +151,6 @@ class GreenhouseScraper(BaseScraper):
             posted_date=posted_date,
             job_num=job_num,
         )
-
-    @staticmethod
-    def _parse_iso_date(value: str) -> str:
-        """Parse an ISO date/time string to YYYY-MM-DD."""
-        if not value:
-            return ""
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
         """Apply department/keyword filters from the board URL."""

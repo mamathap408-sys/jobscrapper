@@ -241,7 +241,7 @@ class GoldmanSachsScraper(BaseScraper):
             location=location,
             description=description,
             url=job_url,
-            posted_date="",
+            posted_date=None,
             job_num=source_id,
         )
 

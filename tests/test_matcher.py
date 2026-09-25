@@ -1,5 +1,6 @@
 """Tests for GenAI job matcher."""
 
+from datetime import date
 import base64
 import json
 from unittest.mock import MagicMock, patch
@@ -16,7 +17,7 @@ def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
         location="Remote",
         description="We are looking for a senior backend engineer with Python and AWS experience.",
         url="https://example.com/jobs/123",
-        posted_date="2024-01-15",
+        posted_date=date(2024, 1, 15),
     )
 
 

@@ -13,34 +13,16 @@ The city field uses format "CityName,StateCode" (e.g., "Bangalore,KA", "Hyderaba
 """
 
 import logging
-from datetime import datetime, timezone
 from xml.etree import ElementTree
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
 # Cities we want to match (case-insensitive)
 _DEFAULT_CITIES = ["bangalore", "bengaluru", "hyderabad", "banglore"]
-
-
-def _parse_rfc2822_date(date_str: str) -> str:
-    """Parse RFC 2822 date to YYYY-MM-DD string."""
-    if not date_str:
-        return ""
-    try:
-        # RFC 2822: "Mon, 14 Apr 2026 00:00:00 GMT"
-        dt = datetime.strptime(date_str.strip(), "%a, %d %b %Y %H:%M:%S %Z")
-        return dt.strftime("%Y-%m-%d")
-    except ValueError:
-        try:
-            # Fallback: without timezone name
-            dt = datetime.strptime(date_str.strip()[:25], "%a, %d %b %Y %H:%M:%S")
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return date_str
 
 
 class CognizantScraper(BaseScraper):
@@ -106,7 +88,7 @@ class CognizantScraper(BaseScraper):
             city_clean = city_text.split(",")[0].strip().title()
             location = f"{city_clean}, {state}" if state else f"{city_clean}, India"
 
-            posted_date = _parse_rfc2822_date(date_str)
+            posted_date = date_or_none(date_str)
             description = strip_html(description_html) if description_html else ""
             job_id = req_id or (job_url if job_url else title)
 
@@ -121,21 +103,8 @@ class CognizantScraper(BaseScraper):
                 job_num=req_id,
             ))
 
-        # Filter by age
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            before = len(jobs)
-            jobs = [j for j in jobs if self._within_age(j.posted_date, now)]
-            logger.info(
-                "Cognizant: %d total in feed, %d in target cities, %d within %d days (skipped %d older)",
-                total_parsed, before, len(jobs), self._max_age_days, before - len(jobs),
-            )
-        else:
-            logger.info(
-                "Cognizant: %d total in feed, %d in target cities",
-                total_parsed, len(jobs),
-            )
-
+        jobs = [job for job in jobs if self._within_age(job.posted_date)]
+        logger.info("Cognizant: %d total in feed, %d in target cities", total_parsed, len(jobs))
         return jobs
 
     def _matches_city(self, city_text: str) -> bool:

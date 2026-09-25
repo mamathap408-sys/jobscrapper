@@ -19,12 +19,11 @@ Optional client-side filters can be provided in the board URL query string:
 """
 
 import logging
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company
+from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,6 @@ class AshbyScraper(BaseScraper):
 
         company = self._extract_company(data, organization)
         jobs = []
-        now = datetime.now(timezone.utc)
         for item in jobs_data:
             job = self._parse_job(item, company)
             if not job:
@@ -75,10 +73,9 @@ class AshbyScraper(BaseScraper):
                 continue
             if not self._matches_filters(job, item, filters):
                 continue
-            if self._max_age_days is not None and not self._within_age(job.posted_date, now):
-                continue
             jobs.append(job)
 
+        jobs = [job for job in jobs if self._within_age(job.posted_date)]
         logger.info("Ashby/%s: %d jobs", organization, len(jobs))
         return jobs
 
@@ -131,14 +128,12 @@ class AshbyScraper(BaseScraper):
 
         location = self._extract_location(item)
         description = self._extract_description(item)
-        posted_date = self._parse_iso_date(
-            str(
-                item.get("publishedDate")
-                or item.get("postedDate")
-                or item.get("updatedAt")
-                or item.get("createdAt")
-                or ""
-            )
+        posted_date = date_or_none(
+            item.get("publishedAt")
+            or item.get("publishedDate")
+            or item.get("postedDate")
+            or item.get("updatedAt")
+            or item.get("createdAt")
         )
         job_url = str(
             item.get("jobUrl")
@@ -209,17 +204,6 @@ class AshbyScraper(BaseScraper):
                 text = str(value).strip()
                 return strip_html(text) if "<" in text else text
         return ""
-
-    @staticmethod
-    def _parse_iso_date(value: str) -> str:
-        """Parse an ISO date/time string to YYYY-MM-DD."""
-        if not value:
-            return ""
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
         """Apply team/department/keyword filters from the board URL."""
