@@ -29,6 +29,7 @@ Usage:
   First run may open a browser for Gmail OAuth consent.
 """
 
+import argparse
 import logging
 import signal
 import subprocess
@@ -43,17 +44,12 @@ import yaml
 
 from config import load_config, load_urls
 from services.db import JobDatabase
+from services.logging_setup import setup_logging
 from services.matcher import JobMatcher
 from services.notifier import EmailNotifier
 from services.resume_builder import ResumeBuilder
 from scrapers import get_scraper
 
-# Configure logging to show timestamps and module names
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 logger = logging.getLogger("jobwatcher")
 
 # Global flag for graceful shutdown
@@ -376,6 +372,10 @@ def main():
     # These tell the OS: "call _signal_handler when this process gets these signals"
     signal.signal(signal.SIGINT, _signal_handler)   # Ctrl+C
     signal.signal(signal.SIGTERM, _signal_handler)   # kill command
+
+    parser = argparse.ArgumentParser(description="Scrape, score, and email job digests on a schedule")
+    parser.add_argument("--log-dir", default="logs", help="Folder for main_<run_no>.log files (default: ./logs)")
+    setup_logging(parser.parse_args().log_dir, "main")
 
     # Initialize all components
     logger.info("Loading configuration...")

@@ -27,15 +27,11 @@ from config import load_config, load_answers
 from config.loader import ANSWERS_PATH, load_base_resume
 from services.db import JobDatabase
 from services.genai_client import GenAIClient
+from services.logging_setup import setup_logging
 from services.resume_builder import ResumeBuilder
 from applicants import detect_applicant_type, get_applicant
 from applicants.resume_parser import parse_resume_tex
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 logger = logging.getLogger("auto_apply")
 
 RESUME_DIR = Path(__file__).parent / "generated_resumes"
@@ -428,9 +424,11 @@ def main():
     parser.add_argument("--portal", help="Filter jobs by applicant portal type (e.g. workday, successfactors)")
     parser.add_argument("--loops", type=int, default=1,
                         help="How many times to run the apply cycle, retrying failed jobs each loop (default: 1)")
+    parser.add_argument("--log-dir", default="logs", help="Folder for apply_<run_no>.log files (default: ./logs)")
     args = parser.parse_args()
     if args.job_id or args.job_ids:
         args.auto = False
+    setup_logging(args.log_dir, "apply")
 
     config = load_config()
     answers = load_answers()
