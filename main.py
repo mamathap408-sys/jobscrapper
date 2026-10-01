@@ -222,6 +222,7 @@ def _notify_pending(db: JobDatabase, notifier: EmailNotifier,
 
 
 def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: EmailNotifier,
+              log_dir: str, run_no: int,
               workday_locations: dict | None = None, resume_builder: ResumeBuilder | None = None):
     """Run one full check cycle: scrape all portals, match new jobs, send digest.
 
@@ -233,6 +234,8 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         db:                 The SQLite database for deduplication.
         matcher:            The GenAI matcher for scoring jobs.
         notifier:           The email notifier for sending digests.
+        log_dir:            Absolute log folder, passed on to apply.py.
+        run_no:             This watcher's run number; apply.py logs under the same number.
         workday_locations:  Per-portal facets from workday_locations.yaml.
         resume_builder:     Optional resume builder for generating tailored resumes.
     """
@@ -254,7 +257,7 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         logger.info("Auto-apply: passing %d job(s) to apply.py", len(job_ids))
         try:
             subprocess.run(
-                [sys.executable, "apply.py", "--job-ids", ids_csv],
+                [sys.executable, "apply.py", "--job-ids", ids_csv, "--log-dir", log_dir, "--run-no", str(run_no)],
                 cwd=str(Path(__file__).parent),
             )
         except Exception as e:
@@ -375,7 +378,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="Scrape, score, and email job digests on a schedule")
     parser.add_argument("--log-dir", default="logs", help="Folder for main_<run_no>.log files (default: ./logs)")
-    setup_logging(parser.parse_args().log_dir, "main")
+    log_dir = str(Path(parser.parse_args().log_dir).resolve())  # absolute: apply.py runs from the project root
+    run_no = setup_logging(log_dir, "main")
 
     # Initialize all components
     logger.info("Loading configuration...")
@@ -409,10 +413,11 @@ def main():
     _notify_pending(db, notifier, resume_builder, rb_cfg.get("attach_resume", False), enabled_scrapers)
 
     # Run the first check immediately (don't wait for the timer)
-    run_cycle(config, db, matcher, notifier, workday_locations, resume_builder)
+    run_cycle(config, db, matcher, notifier, log_dir, run_no, workday_locations, resume_builder)
 
     # Schedule all subsequent checks using the 'schedule' library
-    schedule.every(interval).minutes.do(run_cycle, config, db, matcher, notifier, workday_locations, resume_builder)
+    schedule.every(interval).minutes.do(run_cycle, config, db, matcher, notifier, log_dir, run_no,
+                                        workday_locations, resume_builder)
 
     # Main loop: check if any scheduled jobs need to run, every second
     logger.info("Watcher running. Press Ctrl+C to stop.")

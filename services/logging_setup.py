@@ -3,7 +3,8 @@ services/logging_setup.py — Shared logging setup for the CLI entry points
 =========================================================================
 Console gets INFO and above; <log_dir>/<name>_<run_no>.log gets everything (DEBUG and above).
 
-run_no comes from <log_dir>/run-no.txt and goes up by one on every run. When the file
+run_no comes from <log_dir>/run-no.txt and goes up by one on every run, unless the caller
+passes one in (main.py hands its run_no to the apply.py processes it spawns). When the file
 passes 4 MB it is renamed to <name>_<run_no>.<timestamp>.log and a fresh
 <name>_<run_no>.log is started. A relative log_dir is resolved from the working directory.
 """
@@ -16,18 +17,24 @@ from pathlib import Path
 _MAX_BYTES = 4 * 1024 * 1024
 
 
-def setup_logging(log_dir: str, name: str):
+def setup_logging(log_dir: str, name: str, run_no: int | None = None) -> int:
     """Attach console (INFO+) and rolling file (DEBUG+) handlers to the root logger.
 
     Args:
         log_dir: Folder for log files, from the --log-dir CLI argument.
         name:    Log file prefix, e.g. "apply" → apply_7.log, apply_7.2026-09-25_192302.log.
+        run_no:  Reuse this run number (e.g. apply.py spawned by main.py) instead of
+                 taking the next one from run-no.txt. The log file is appended to.
+
+    Returns:
+        The run number used.
     """
     path = Path(log_dir)
     path.mkdir(parents=True, exist_ok=True)
-    counter = path / "run-no.txt"
-    run_no = int(counter.read_text()) + 1 if counter.exists() else 1
-    counter.write_text(str(run_no))
+    if run_no is None:
+        counter = path / "run-no.txt"
+        run_no = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(run_no))
     stem = f"{name}_{run_no}"
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", "%Y-%m-%d %H:%M:%S")
 
@@ -50,3 +57,4 @@ def setup_logging(log_dir: str, name: str):
     logging.getLogger("httpcore").setLevel(logging.INFO)
     logging.getLogger("httpx").setLevel(logging.INFO)
     logging.getLogger(__name__).info("Run %d — logging to %s", run_no, path / f"{stem}.log")
+    return run_no

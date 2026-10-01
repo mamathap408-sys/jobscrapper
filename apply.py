@@ -425,10 +425,12 @@ def main():
     parser.add_argument("--loops", type=int, default=1,
                         help="How many times to run the apply cycle, retrying failed jobs each loop (default: 1)")
     parser.add_argument("--log-dir", default="logs", help="Folder for apply_<run_no>.log files (default: ./logs)")
+    parser.add_argument("--run-no", type=int,
+                        help="Reuse this run number instead of taking the next one (set by main.py)")
     args = parser.parse_args()
     if args.job_id or args.job_ids:
         args.auto = False
-    setup_logging(args.log_dir, "apply")
+    setup_logging(args.log_dir, "apply", args.run_no)
 
     config = load_config()
     answers = load_answers()
