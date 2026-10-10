@@ -256,6 +256,9 @@ def run_cycle(config: dict, db: JobDatabase, matcher: JobMatcher, notifier: Emai
         ids_csv = ",".join(job_ids)
         logger.info("Auto-apply: passing %d job(s) to apply.py", len(job_ids))
         try:
+            # If the matcher has already logged in this process, GENAI_TOKEN is set in our
+            # own os.environ (see GenAIClient._get_auth_token) — subprocess.run() inherits
+            # the parent's environment by default, so apply.py picks it up automatically.
             subprocess.run(
                 [sys.executable, "apply.py", "--job-ids", ids_csv, "--log-dir", log_dir, "--run-no", str(run_no)],
                 cwd=str(Path(__file__).parent),
