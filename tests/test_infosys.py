@@ -1,5 +1,7 @@
 """Tests for Infosys scraper."""
 
+from datetime import date
+
 from scrapers.infosys import InfosysScraper
 
 
@@ -16,13 +18,6 @@ def test_extract_source_id_custom():
 def test_extract_source_id_multiple():
     url = "https://career.infosys.com/joblist?sourceId=1,21,41"
     assert InfosysScraper._extract_source_id(url) == "1,21,41"
-
-
-def test_parse_created_on():
-    assert InfosysScraper._parse_created_on("2026-04-30T10:28:48.282") == "2026-04-30"
-    assert InfosysScraper._parse_created_on("2026-01-15T08:00:00") == "2026-01-15"
-    assert InfosysScraper._parse_created_on("") == ""
-    assert InfosysScraper._parse_created_on("invalid") == ""
 
 
 def test_parse_job():
@@ -48,7 +43,7 @@ def test_parse_job():
     assert job.location == "BANGALORE"
     assert "awareness programs" in job.description
     assert "Python, Java" in job.description
-    assert job.posted_date == "2026-04-30"
+    assert job.posted_date == date(2026, 4, 30)
     assert job.job_num == "244865"
     assert "jobReferenceCode=INFSYS-EXTERNAL-244865" in job.url
     scraper.close()
@@ -98,7 +93,6 @@ if __name__ == "__main__":
     test_extract_source_id_default()
     test_extract_source_id_custom()
     test_extract_source_id_multiple()
-    test_parse_created_on()
     test_parse_job()
     test_parse_job_missing_fields()
     test_parse_job_strips_location_whitespace()

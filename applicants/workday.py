@@ -49,6 +49,7 @@ _SEL = {
     # Job page
     "apply_btn":        '[data-automation-id="jobPostingApplyButton"], [data-automation-id="adventureButton"]',
     "continue_btn":     '[data-automation-id="continueButton"]',
+    "view_app_btn":     '[data-automation-id="viewButton"]',
     "autofill_resume":  '[data-automation-id="autofillWithResume"]',
 
     # Candidate Home (for deleting existing applications)
@@ -171,12 +172,14 @@ class WorkdayApplyError(Exception):
 class WorkdayApplicant:
     """Automates Workday job application form submission."""
 
-    def __init__(self, config: dict, answers: dict, answers_raw: str = ""):
+    def __init__(self, config: dict, answers: dict, answers_raw: str = "", resume_text: str = ""):
         if not answers_raw:
             raise WorkdayApplyError("answers_raw is required — raw workday_answers.yaml content must be provided")
+        if not resume_text:
+            raise WorkdayApplyError("resume_text is required — base resume content must be provided")
         self._apply_cfg = config.get("apply", {})
         self._genai_cfg = config.get("genai", {})
-        self._profiles = config.get("profiles", [])
+        self._resume_text = resume_text
         self._answers = answers
         self._answers_raw = answers_raw
         self._work_exp = answers.get("work_experience", [])
@@ -298,7 +301,10 @@ class WorkdayApplicant:
 
         try:
             # Step 1: Navigate to job page and ensure signed in
-            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            try:
+                self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            except PlaywrightTimeout:
+                logger.warning("networkidle timed out on goto — continuing anyway")
             self._ensure_signed_in()
 
             # Step 2: Click Apply
@@ -311,6 +317,10 @@ class WorkdayApplicant:
             return True
 
         except PlaywrightTimeout as e:
+            if self._page.query_selector(_SEL["view_app_btn"]):
+                logger.info("'View Application' button found — already applied to: %s at %s",
+                            job["title"], job["company"])
+                return True
             raise WorkdayApplyError(f"Timeout waiting for element: {e}") from e
 
     # ── Pre-auth: Sign in from job page header ──────────────────
@@ -334,7 +344,10 @@ class WorkdayApplicant:
             logger.info("No credentials for tenant: %s — manual sign-in required", self._current_tenant)
             input("Press Enter after you have signed in manually...")
 
-        self._page.reload(wait_until="networkidle")
+        try:
+            self._page.reload(wait_until="networkidle")
+        except PlaywrightTimeout:
+            logger.warning("networkidle timed out on reload — continuing anyway")
 
     # ── Step 1: Click Apply ────────────────────────────────────
 
@@ -354,7 +367,10 @@ class WorkdayApplicant:
             logger.info("Existing application found — deleting before re-applying")
             job_url = self._page.url
             self._delete_existing_application(job_title)
-            self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            try:
+                self._page.goto(job_url, wait_until="networkidle", timeout=_TIMEOUT)
+            except PlaywrightTimeout:
+                logger.warning("networkidle timed out on goto — continuing anyway")
             self._page.wait_for_selector(_SEL["apply_btn"], timeout=_TIMEOUT)
 
         self._page.query_selector(_SEL["apply_btn"]).click()
@@ -463,7 +479,10 @@ class WorkdayApplicant:
                 break
             except PlaywrightTimeout:
                 continue  # click didn't register, retry
-        self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        try:
+            self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
+        except PlaywrightTimeout:
+            logger.warning("networkidle timed out after sign-in — continuing anyway")
 
     # ── Step 3: Multi-step form filling ────────────────────────
 
@@ -543,7 +562,11 @@ class WorkdayApplicant:
         self._click_next()
 
         # Steps 2+: Fill pages until Submit
+        _page_count = 0
         while True:
+            _page_count += 1
+            if _page_count > 20:
+                raise WorkdayApplyError("Exceeded 20 pages — likely stuck in a loop")
             self._page.wait_for_load_state("networkidle", timeout=_TIMEOUT)
             self._page.wait_for_selector(_SEL["next_btn"], timeout=_TIMEOUT)
 
@@ -1009,7 +1032,9 @@ class WorkdayApplicant:
         pills = container.query_selector_all('[data-automation-id="selectedItem"]')
         skill_lower = skill_name.lower().replace(" (suggested)", "")
         for pill in pills:
-            label = (pill.get_attribute("title") or "").lower().replace(" (suggested)", "")
+            prompt_el = pill.query_selector('[data-automation-id="promptOption"]')
+            label = (prompt_el.get_attribute("data-automation-label") or "") if prompt_el else (pill.get_attribute("title") or "")
+            label = label.lower().replace(" (suggested)", "")
             if label == skill_lower:
                 delete_btn = pill.query_selector('[data-automation-id="DELETE_charm"]')
                 if delete_btn:
@@ -1726,7 +1751,6 @@ class WorkdayApplicant:
 
         Sends up to 10 questions per batch. Returns answers in the same order.
         """
-        profile_text = self._build_profile_text()
         answers_content = self._answers_raw
         all_answers = []
 
@@ -1736,10 +1760,10 @@ class WorkdayApplicant:
             for idx, field in enumerate(batch, 1):
                 options_text = ""
                 if field.get("options"):
-                    # Filter out placeholder values for required dropdowns
+                    # Filter out placeholder values so the LLM never picks a non-answer
+                    # as if it were a real option (it should say SKIP instead).
                     opts = field["options"]
-                    if field["required"]:
-                        opts = [o for o in opts if o.lower() not in ("select one", "-- select --", "select", "")]
+                    opts = [o for o in opts if o.lower() not in ("select one", "-- select --", "select", "")]
                     options_text = f"  Options: {json.dumps(opts)}"
                 required_text = "Required" if field["required"] else "Optional"
                 questions_block += (
@@ -1754,8 +1778,9 @@ class WorkdayApplicant:
   Company: {job.get('company', '')}
   Description: {job['job_description']}
 
-The applicant's profile:
-{profile_text}
+The applicant's background:
+Resume:
+{self._resume_text}
 
 The applicant's answers reference (use this to inform your responses):
 {answers_content}
@@ -1792,8 +1817,8 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                 for idx, (field, item) in enumerate(zip(batch, parsed)):
                     answer = item.get("answer", "")
                     confidence = int(item.get("confidence", 0))
-                    logger.info("  LLM batch answer %d (confidence=%d): '%s'",
-                                idx + 1, confidence, str(answer)[:60])
+                    logger.info("  LLM batch answer %d for '%s' (confidence=%d): '%s'",
+                                idx + 1, field["label"][:60], confidence, str(answer)[:60])
 
                     if confidence < self._confidence_threshold:
                         raise WorkdayApplyError(
@@ -1803,6 +1828,10 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                     all_answers.append(str(answer))
 
             except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.error(
+                    "  Batch parse failed (%s: %s). Expected %d answer(s). Raw LLM response:\n%s",
+                    type(e).__name__, e, len(batch), response,
+                )
                 raise WorkdayApplyError(f"Failed to parse LLM batch response: {e}") from e
 
         return all_answers
@@ -1827,29 +1856,4 @@ Return ONLY the JSON array, no markdown fences or extra text."""
                 f"Expected {expected_count} answers, got {len(parsed) if isinstance(parsed, list) else 'non-array'}"
             )
         return parsed
-
-    def _build_profile_text(self) -> str:
-        """Build a profile summary from config for LLM context."""
-        parts = []
-        if self._profiles:
-            p = self._profiles[0]
-            parts.append(f"  Title: {p.title}")
-            parts.append(f"  Skills: {', '.join(p.skills[:15])}")
-            parts.append(f"  Experience: {p.experience_years} years")
-            parts.append(f"  Location: {p.location_preference}")
-            if p.additional_criteria:
-                parts.append(f"  Background: {p.additional_criteria.strip()}")
-
-        for exp in self._work_exp:
-            parts.append(f"  Work: {exp['title']} at {exp['company']} ({exp.get('start_date', '')} - {exp.get('end_date', 'present')})")
-
-        edu = self._workday_fields.get("education", {})
-        if edu:
-            degree = edu.get("degree", [""])[0] if isinstance(edu.get("degree"), list) else edu.get("degree", "")
-            field = edu.get("fieldOfStudy", [""])[0] if isinstance(edu.get("fieldOfStudy"), list) else edu.get("fieldOfStudy", "")
-            school = edu.get("school", [""])[0] if isinstance(edu.get("school"), list) else edu.get("school", "")
-            year = edu.get("lastYearAttended", edu.get("endDate", ""))
-            parts.append(f"  Education: {degree} in {field} from {school} ({year})")
-
-        return "\n".join(parts)
 

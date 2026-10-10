@@ -23,13 +23,12 @@ Companies using this platform (confirmed with India jobs):
 
 import logging
 import re
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -44,32 +43,6 @@ _DEFAULT_RSS_ROWS = 5000
 _NAMESPACES = {
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
-
-
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
-def _parse_rfc2822_date(date_str: str) -> str:
-    """Parse RSS pubDate to YYYY-MM-DD string."""
-    if not date_str:
-        return ""
-    formats = [
-        "%a, %d %b %Y %H:%M:%S %Z",
-        "%a, %d %b %Y %H:%M:%S %z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d",
-    ]
-    for fmt in formats:
-        try:
-            dt = datetime.strptime(date_str.strip(), fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return date_str
 
 
 def _extract_rss_id(guid_text: str) -> str:
@@ -89,30 +62,18 @@ def _extract_rss_id(guid_text: str) -> str:
 class SuccessFactorsScraper(BaseScraper):
     """Scrapes SAP SuccessFactors career sites via their public RSS feed."""
 
-    def __init__(self, cities: list[str] | None = None, max_age_days: int | None = None,
-                 rss_rows: int = _DEFAULT_RSS_ROWS, **kwargs):
+    def __init__(self, cities: list[str] | None = None, rss_rows: int = _DEFAULT_RSS_ROWS, **kwargs):
         """Initialize with city search terms and optional limits.
 
         Args:
             cities:       List of city names to search for via locationSearch.
                           Defaults to ["Hyderabad", "Bengaluru", "Bangalore"].
-            max_age_days: Only include jobs posted within this many days. None = no limit.
             rss_rows:     Max rows to request per RSS query. Sites that support it
                           (Wipro) return up to this many; others ignore it.
         """
+        super().__init__(timeout=60, **kwargs)  # Large RSS responses can be slow
         self._cities = cities or _DEFAULT_CITIES
-        self._max_age_days = max_age_days
         self._rss_rows = rss_rows
-        self._client = httpx.Client(
-            timeout=60,  # Large RSS responses can be slow
-            verify=False,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
-        )
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape jobs from SuccessFactors RSS feed for all target cities.
@@ -144,17 +105,8 @@ class SuccessFactorsScraper(BaseScraper):
                     seen_ids.add(job.job_id)
                     all_jobs.append(job)
 
-        # Filter by age
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            before = len(all_jobs)
-            all_jobs = [j for j in all_jobs if self._within_age(j.posted_date, now)]
-            logger.info(
-                "%s: %d unique jobs, %d within %d days (skipped %d)",
-                company, before, len(all_jobs), self._max_age_days, before - len(all_jobs),
-            )
-        else:
-            logger.info("%s: %d unique jobs across cities", company, len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("%s: %d unique jobs across cities", company, len(all_jobs))
 
         return all_jobs
 
@@ -199,8 +151,8 @@ class SuccessFactorsScraper(BaseScraper):
 
             location = self._extract_location(title, description_html)
             job_id = _extract_rss_id(guid) or _extract_rss_id(link) or title
-            posted_date = _parse_rfc2822_date(pub_date)
-            description = _strip_html(description_html) if description_html else ""
+            posted_date = date_or_none(pub_date)
+            description = strip_html(description_html) if description_html else ""
 
             jobs.append(JobPosting(
                 job_id=str(job_id),
@@ -248,16 +200,6 @@ class SuccessFactorsScraper(BaseScraper):
                 return part.capitalize()
         return parts[0]
 
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
     @staticmethod
     def _get_text(item, tag: str) -> str:
         """Get text content of a child element."""
@@ -265,7 +207,3 @@ class SuccessFactorsScraper(BaseScraper):
         if el is None:
             return ""
         return (el.text or "").strip()
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

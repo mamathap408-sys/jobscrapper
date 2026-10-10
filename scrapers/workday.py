@@ -24,11 +24,12 @@ Example:
 
 import logging
 import re
+from datetime import date, timedelta
 from urllib.parse import urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting, generate_fallback_id
+from scrapers.base import BaseScraper, JobPosting, generate_fallback_id, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 _PAGE_SIZE = 20
 
 
-def _parse_posted_days(posted_on: str) -> int | None:
+def _parse_posted_days(posted_on: str) -> int:
     """Parse Workday's relative date string into number of days ago.
 
     Examples:
@@ -46,7 +47,10 @@ def _parse_posted_days(posted_on: str) -> int | None:
         "Posted 30+ Days Ago" → 30
 
     Returns:
-        Number of days ago, or None if the format is unrecognized.
+        Number of days ago ("30+" counts as 30).
+
+    Raises:
+        ValueError: if the format is unrecognized.
     """
     text = posted_on.lower().strip()
     if "today" in text:
@@ -56,7 +60,7 @@ def _parse_posted_days(posted_on: str) -> int | None:
     match = re.search(r"(\d+)\+?\s*days?\s*ago", text)
     if match:
         return int(match.group(1))
-    return None
+    raise ValueError(f"Unparseable Workday date: {posted_on!r}")
 
 
 def _parse_workday_url(url: str) -> tuple[str, str]:
@@ -97,29 +101,19 @@ def _build_api_base(url: str) -> str:
 class WorkdayScraper(BaseScraper):
     """Scrapes Workday career portals via their JSON API (no browser needed)."""
 
-    def __init__(self, facet_list: list[dict] | None = None, max_age_days: int | None = None, **kwargs):
-        """Initialize with optional API facet filters and age limit.
+    def __init__(self, facet_list: list[dict] | None = None, **kwargs):
+        """Initialize with optional API facet filters.
 
         Args:
             facet_list:   List of single-facet dicts to query separately, then merge.
                           e.g., [{"locationCountry": ["id1"]}, {"locations": ["id2"]}]
                           Each dict is queried as a separate API call to avoid AND logic.
-            max_age_days: Only include jobs posted within this many days.
-                          e.g., 10 = skip anything older than 10 days. None = no limit.
         """
-        self._facet_list = facet_list or [{}]
-        self._max_age_days = max_age_days
-        # httpx client reused across API calls for connection pooling
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,  # Corporate Zscaler proxy intercepts HTTPS
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
+        super().__init__(
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            **kwargs,
         )
+        self._facet_list = facet_list or [{}]
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all job postings from a Workday portal.
@@ -148,20 +142,8 @@ class WorkdayScraper(BaseScraper):
                     seen_ids.add(job.job_id)
                     all_jobs.append(job)
 
-        # Filter out old jobs
-        before_filter = len(all_jobs)
-        if self._max_age_days is not None:
-            all_jobs = [
-                j for j in all_jobs
-                if (_parse_posted_days(j.posted_date) or 0) <= self._max_age_days
-            ]
-            filtered_out = before_filter - len(all_jobs)
-            logger.info(
-                "%s: %d total unique jobs, %d within %d days, %d older (skipped)",
-                company, before_filter, len(all_jobs), self._max_age_days, filtered_out,
-            )
-        else:
-            logger.info("%s: %d total unique jobs", company, len(all_jobs))
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("%s: %d total unique jobs", company, len(all_jobs))
         return all_jobs
 
     def _scrape_one_facet(
@@ -257,8 +239,11 @@ class WorkdayScraper(BaseScraper):
             bullet_fields = item.get("bulletFields", [])
             job_num = bullet_fields[0] if bullet_fields else ""
             location = item.get("locationsText", "")
-            posted_date = item.get("postedOn", "")
-
+            try:
+                posted_date = date.today() - timedelta(days=_parse_posted_days(item.get("postedOn", "")))
+            except ValueError as e:  # temporary safety net, same as base.date_or_none
+                logger.warning("%s", e)
+                posted_date = None
 
             job_url = f"{url_base}{external_path}"
 
@@ -305,7 +290,7 @@ class WorkdayScraper(BaseScraper):
             additional = posting_info.get("additionalLocations", [])
             all_locations = [primary_loc] + additional if additional else [primary_loc]
             location = " | ".join(loc for loc in all_locations if loc)
-            return _strip_html(raw_desc), location
+            return strip_html(raw_desc), location
         except (httpx.HTTPError, ValueError) as e:
             logger.warning("Failed to fetch job detail %s: %s", external_path, e)
             return "", ""
@@ -323,14 +308,3 @@ class WorkdayScraper(BaseScraper):
                 job.description = desc
                 if location:
                     job.location = location
-
-    def close(self):
-        """Close the httpx client (releases connections)."""
-        self._client.close()
-
-
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string. Used to clean Workday job descriptions."""
-    clean = re.sub(r"<[^>]+>", " ", html)  # Replace tags with spaces
-    clean = re.sub(r"\s+", " ", clean)      # Collapse multiple spaces
-    return clean.strip()

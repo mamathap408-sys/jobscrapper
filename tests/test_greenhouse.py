@@ -1,5 +1,7 @@
 """Tests for Greenhouse scraper."""
 
+from datetime import date
+
 from scrapers.greenhouse import GreenhouseScraper
 
 
@@ -36,7 +38,7 @@ def test_parse_job():
     assert job.company == "DevRev"
     assert job.location == "Bangalore, India"
     assert "backend systems" in job.description
-    assert job.posted_date == "2026-05-01"
+    assert job.posted_date == date(2026, 5, 1)
     assert job.job_num == "REQ-123"
     scraper.close()
 

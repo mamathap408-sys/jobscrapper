@@ -1,11 +1,12 @@
 """Tests for GenAI job matcher."""
 
+from datetime import date
 import base64
 import json
 from unittest.mock import MagicMock, patch
 
-from scrapers.base import JobPosting, JobProfile
-from services.matcher import _build_profile_text, _build_jobs_text
+from scrapers.base import JobPosting
+from services.genai_queries import GenAIQueries
 
 
 def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
@@ -16,21 +17,8 @@ def _sample_job(title="Senior Backend Engineer", company="Acme Corp"):
         location="Remote",
         description="We are looking for a senior backend engineer with Python and AWS experience.",
         url="https://example.com/jobs/123",
-        posted_date="2024-01-15",
+        posted_date=date(2024, 1, 15),
     )
-
-
-def _sample_profiles():
-    return [
-        JobProfile(
-            title="Software Engineer",
-            skills=["Python", "AWS", "Distributed Systems"],
-            tools=["Git", "Claude Code"],
-            experience_years=5,
-            location_preference="Remote",
-            additional_criteria="Looking for senior IC backend roles.",
-        ),
-    ]
 
 
 def _sample_config():
@@ -45,23 +33,13 @@ def _sample_config():
             "application_name": "test-app",
             "match_threshold": 6,
         },
-        "profiles": _sample_profiles(),
         "scoring_instructions": "Score 1-10 based on skill match.",
     }
 
 
-def test_build_profile_text():
-    text = _build_profile_text(_sample_profiles())
-    assert "Profile 1: Software Engineer" in text
-    assert "Python" in text
-    assert "5 years" in text
-    assert "Remote" in text
-    assert "Claude Code" in text
-
-
 def test_build_jobs_text():
     jobs = [_sample_job(), _sample_job("Frontend Dev", "Other Inc")]
-    text = _build_jobs_text(jobs)
+    text = GenAIQueries._build_jobs_text(jobs)
     assert "Senior Backend Engineer" in text
     assert "Frontend Dev" in text
     assert "Job 1" in text
@@ -73,8 +51,8 @@ def test_build_jobs_text_trims_long_description_and_logs_warning():
     jobs = [_sample_job()]
     jobs[0].description = long_description
 
-    with patch("services.matcher.logger.warning") as mock_warning:
-        text = _build_jobs_text(jobs)
+    with patch("services.genai_queries.logger.warning") as mock_warning:
+        text = GenAIQueries._build_jobs_text(jobs)
 
     assert long_description[:20000] in text
     assert long_description not in text
@@ -135,7 +113,6 @@ def test_matcher_with_mock_gateway():
 
 
 if __name__ == "__main__":
-    test_build_profile_text()
     test_build_jobs_text()
     test_build_jobs_text_trims_long_description_and_logs_warning()
     test_matcher_with_mock_gateway()

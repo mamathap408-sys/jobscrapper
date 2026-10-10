@@ -7,6 +7,7 @@ parsing for the GenAI Gateway.
 
 import base64
 import logging
+import os
 import time
 
 import httpx
@@ -30,8 +31,78 @@ class GenAIClient:
         self._model = genai_cfg["model"]
         self._app_name = genai_cfg.get("application_name", "job-posting-watcher")
         self._max_retries = genai_cfg.get("max_retries", 10)
-        self._token = None
+        # Seed from GENAI_TOKEN if a caller (e.g. main.py spawning apply.py) already has a
+        # valid cached token — skips the login round-trip entirely. Falls back to a normal
+        # login on the first 401 if this is missing, empty, or stale.
+        self._token = os.environ.get("GENAI_TOKEN") or None
         self._client = httpx.Client(timeout=60, verify=False)
+
+        pricing = genai_cfg.get("pricing", {})
+        self._input_price_per_million = pricing.get("input_per_million")
+        self._output_price_per_million = pricing.get("output_per_million")
+        self._cache_write_price_per_million = pricing.get("cache_write_per_million")
+        self._cache_read_price_per_million = pricing.get("cache_read_per_million")
+        self._total_input_tokens = 0
+        self._total_output_tokens = 0
+        self._total_cache_write_tokens = 0
+        self._total_cache_read_tokens = 0
+        self._next_cost_log_threshold = 1.0  # log once cumulative cost crosses each whole dollar
+
+    def _calc_cost(self, input_tok: int, output_tok: int, cache_write_tok: int, cache_read_tok: int) -> float | None:
+        """Cost for the given token counts, or None if pricing isn't fully configured."""
+        prices = (
+            self._input_price_per_million, self._output_price_per_million,
+            self._cache_write_price_per_million, self._cache_read_price_per_million,
+        )
+        if any(p is None for p in prices):
+            return None
+        return (
+            input_tok / 1_000_000 * self._input_price_per_million
+            + output_tok / 1_000_000 * self._output_price_per_million
+            + cache_write_tok / 1_000_000 * self._cache_write_price_per_million
+            + cache_read_tok / 1_000_000 * self._cache_read_price_per_million
+        )
+
+    def _current_cost(self) -> float | None:
+        """Cumulative cost so far, or None if pricing isn't fully configured."""
+        return self._calc_cost(
+            self._total_input_tokens, self._total_output_tokens,
+            self._total_cache_write_tokens, self._total_cache_read_tokens,
+        )
+
+    def _record_usage(self, response_json: dict):
+        """Accumulate token counts (including cache write/read), logging per-query cost at
+        DEBUG and a running cumulative total, plus an INFO line once per $1 spent overall."""
+        usage = response_json.get("full_model_response", {}).get("usage", {})
+        in_tok = usage.get("input_tokens", 0)
+        out_tok = usage.get("output_tokens", 0)
+        cache_write_tok = usage.get("cache_creation_input_tokens", 0)
+        cache_read_tok = usage.get("cache_read_input_tokens", 0)
+
+        self._total_input_tokens += in_tok
+        self._total_output_tokens += out_tok
+        self._total_cache_write_tokens += cache_write_tok
+        self._total_cache_read_tokens += cache_read_tok
+
+        query_cost = self._calc_cost(in_tok, out_tok, cache_write_tok, cache_read_tok)
+        cost = self._current_cost()
+        query_cost_str = f"${query_cost:.5f}" if query_cost is not None else "n/a"
+        cost_str = f"${cost:.4f}" if cost is not None else "n/a"
+        logger.debug(
+            "GenAI query cost: %s (%d input + %d output + %d cache-write + %d cache-read tokens) "
+            "— cumulative so far: %s (%d in, %d out, %d cache-write, %d cache-read)",
+            query_cost_str, in_tok, out_tok, cache_write_tok, cache_read_tok,
+            cost_str, self._total_input_tokens, self._total_output_tokens,
+            self._total_cache_write_tokens, self._total_cache_read_tokens,
+        )
+
+        if cost is not None and cost >= self._next_cost_log_threshold:
+            logger.info(
+                "GenAI usage: $%.2f spent — %d input + %d output + %d cache-write + %d cache-read tokens",
+                cost, self._total_input_tokens, self._total_output_tokens,
+                self._total_cache_write_tokens, self._total_cache_read_tokens,
+            )
+            self._next_cost_log_threshold = int(cost) + 1
 
     def _get_auth_token(self) -> str:
         """POST /auth/login to get a fresh JWT access token."""
@@ -42,6 +113,11 @@ class GenAIClient:
         )
         if resp.status_code == 200:
             self._token = resp.json().get("access_token")
+            # Written back to this process's own environment so any subprocess
+            # spawned afterward (e.g. main.py spawning apply.py) inherits it and
+            # skips its own login — subprocess.run() inherits os.environ by default.
+            if self._token:
+                os.environ["GENAI_TOKEN"] = self._token
             return self._token
         logger.error("GenAI login failed (%d): %s", resp.status_code, resp.text)
         raise RuntimeError(f"GenAI login failed with status {resp.status_code}")
@@ -97,7 +173,9 @@ class GenAIClient:
                     },
                 )
                 resp.raise_for_status()
-                return self._parse_response(resp.json())
+                resp_json = resp.json()
+                self._record_usage(resp_json)
+                return self._parse_response(resp_json)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401:
                     logger.info("GenAI token expired, re-authenticating...")
@@ -177,7 +255,9 @@ class GenAIClient:
                     },
                 )
                 resp.raise_for_status()
-                return self._parse_response(resp.json())
+                resp_json = resp.json()
+                self._record_usage(resp_json)
+                return self._parse_response(resp_json)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401:
                     logger.info("GenAI token expired, re-authenticating...")

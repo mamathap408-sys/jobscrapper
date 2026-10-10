@@ -31,13 +31,11 @@ Example urls.yaml entry:
 """
 
 import logging
-import re
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -45,35 +43,11 @@ _API_BASE = "https://intapgateway.infosysapps.com/careersci/search/intapjbsrch/g
 _JOB_DETAIL_BASE = "https://career.infosys.com/jobdesc?jobReferenceCode="
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
 class InfosysScraper(BaseScraper):
     """Scrapes Infosys careers via their internal REST API (no browser needed)."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
-        """Initialize with optional age filter.
-
-        Args:
-            max_age_days: Only include jobs posted within this many days.
-                          None = no limit.
-        """
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(headers={"Accept": "application/json"}, **kwargs)
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Scrape all job postings from Infosys careers.
@@ -111,19 +85,8 @@ class InfosysScraper(BaseScraper):
             if job:
                 all_jobs.append(job)
 
-        # Filter by age
-        before_filter = len(all_jobs)
-        if self._max_age_days is not None:
-            now = datetime.now(timezone.utc)
-            all_jobs = [j for j in all_jobs if self._within_age(j.posted_date, now)]
-            skipped = before_filter - len(all_jobs)
-            logger.info(
-                "Infosys: %d total jobs, %d within %d days, %d older (skipped)",
-                before_filter, len(all_jobs), self._max_age_days, skipped,
-            )
-        else:
-            logger.info("Infosys: %d total jobs", len(all_jobs))
-
+        all_jobs = [job for job in all_jobs if self._within_age(job.posted_date)]
+        logger.info("Infosys: %d total jobs", len(all_jobs))
         return all_jobs
 
     @staticmethod
@@ -158,7 +121,7 @@ class InfosysScraper(BaseScraper):
                       "educationalRequirement"):
             val = item.get(field, "")
             if val and val.strip():
-                desc_parts.append(_strip_html(val))
+                desc_parts.append(strip_html(val))
         description = "\n".join(desc_parts)
 
         # Skills metadata — append if present
@@ -170,9 +133,7 @@ class InfosysScraper(BaseScraper):
         if skills_parts:
             description += "\nSkills: " + "; ".join(skills_parts)
 
-        # Posted date
-        created_on = item.get("createdOn", "")
-        posted_date = self._parse_created_on(created_on)
+        posted_date = date_or_none(item.get("createdOn"))
 
         job_url = f"{_JOB_DETAIL_BASE}{ref_code}"
         requisition_id = str(item.get("requisitionId", ""))
@@ -187,35 +148,3 @@ class InfosysScraper(BaseScraper):
             posted_date=posted_date,
             job_num=requisition_id,
         )
-
-    @staticmethod
-    def _parse_created_on(created_on: str) -> str:
-        """Parse Infosys ISO timestamp to YYYY-MM-DD date string.
-
-        Args:
-            created_on: e.g., "2026-04-30T10:28:48.282"
-
-        Returns:
-            Date string like "2026-04-30", or empty string on error.
-        """
-        if not created_on:
-            return ""
-        try:
-            dt = datetime.fromisoformat(created_on.replace("Z", "+00:00"))
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
-
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

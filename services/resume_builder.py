@@ -22,75 +22,20 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from config.loader import load_exp_additional_bullets
 from services.db import JobDatabase
-from services.genai_client import GenAIClient
+from services.genai_queries import GenAIQueries
 
 logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = Path(__file__).parent.parent / "generated_resumes"
-
-_TAILOR_PROMPT = """\
-You will receive a base LaTeX resume and a job description. Make MINIMAL, surgical edits to help the resume pass ATS keyword filters for this job. The resume should still read like a human wrote it.
-
-## What to do — LESS IS MORE
-
-1. **Summary**: Rewrite to align with the JD, but keep the original tone and structure. Mention key skills/technologies from the JD that the candidate actually has. Keep to 2-3 sentences.
-2. **Technical Skills**: Reorder so JD-relevant skills appear first. If the candidate clearly has a skill from the JD (proven by their projects/experience) but it's missing, add it. Remove nothing.
-3. **Experience**: Rephrase bullets to echo JD language where truthful. Keep the same facts — do NOT change job titles, dates, companies, or add/remove bullets.
-4. **Projects**: Rephrase bullet points to incorporate JD keywords and terminology naturally. Keep the same meaning — do NOT fabricate accomplishments or add new content. Reorder bullets so JD-relevant ones come first.
-5. **Education & Additional**: Copy EXACTLY as-is. Zero changes.
-
-## Critical constraints
-- Keep changes minimal and natural. If the base resume already matches well, return it nearly unchanged.
-- Do NOT add flowery language, buzzwords, or filler. Keep the candidate's original voice.
-- Do NOT fabricate skills or experience.
-- Do NOT add new bullet points anywhere.
-- **Skills limit**: The final total skill count must NOT exceed the original count by more than 2. You CAN remove irrelevant skills and replace them with more suitable ones from the JD — replacements don't count toward the limit since the total stays the same.
-
-## Format
-- Return ONLY the complete LaTeX source code. No commentary, no markdown fences.
-- Must compile with pdflatex without errors.
-- Preserve all LaTeX commands, packages, and formatting exactly.
-
-## Base Resume:
-{base_resume}
-
-## Job Description:
-{job_description}
-"""
-
-_EXPERIENCE_BOOST_PROMPT = """
-
-## Experience Enhancement (apply ONLY if the candidate's Amazon experience aligns with the target JD)
-
-If the Amazon "SPS Associate" experience section is relevant to this job:
-
-1. **Add 2-3 bullet points** to the Amazon Experience section. Pick the most JD-relevant items from this list:
-
-- Resolved 50+ daily seller escalations via phone and email, maintaining 95%+ first-contact resolution rate
-- Identified and triaged systemic defects affecting seller workflows, driving process improvements that reduced repeat contacts by 20%
-- Liaised with Merchant Investigations, Payments, and Customer Service teams to resolve cross-functional seller issues
-- Mentored and trained new associates on best practices for seller support, quality standards, and SOPs
-- Monitored SLA adherence and performance metrics (quality, productivity, handle time) to exceed team targets
-- Developed internal documentation and knowledge-base articles to streamline issue resolution
-- Managed high-volume inbound/outbound seller communications ensuring compliance with Amazon policies
-- Contributed to workflow and capacity planning during peak volume periods
-- Acted as point of escalation for complex seller account and transaction issues
-- Drove seller satisfaction improvements through proactive outreach and chronic issue resolution
-
-2. **Reorder experience entries**: Move the Amazon entry ABOVE the Upwork entry within the Experience section.
-3. **Reorder sections**: Move the Experience section BEFORE Technical Skills and Projects, so the order becomes: Summary → Experience → Technical Skills → Projects → Education/Achievements.
-
-If the Amazon experience is NOT relevant to the JD, ignore this section entirely and keep the resume as-is (original section and experience order).
-"""
-
 
 class ResumeBuilder:
     """Generates tailored resumes using GenAI and compiles them to PDF."""
 
     def __init__(self, config: dict, db: JobDatabase):
         genai_cfg = config["genai"]
-        self._client = GenAIClient(genai_cfg)
+        self._queries = GenAIQueries(genai_cfg)
         self._db = db
 
         rb_cfg = config.get("resume_builder", {})
@@ -101,6 +46,9 @@ class ResumeBuilder:
             self._base_resume_path = Path(__file__).parent.parent / self._base_resume_path
 
         self._base_resume = self._base_resume_path.read_text(encoding="utf-8")
+
+        self._additional_bullets = load_exp_additional_bullets(config)
+
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         # Add TeX bin directory to PATH if configured
@@ -153,22 +101,13 @@ class ResumeBuilder:
 
         logger.info("Regenerating resume '%s' for: %s at %s", resume_name, job["title"], job["company"])
 
-        prompt = _TAILOR_PROMPT.format(base_resume=self._base_resume, job_description=jd)
-        prompt += _EXPERIENCE_BOOST_PROMPT
-
         try:
-            tailored_tex = self._client.chat(prompt)
+            tailored_tex = self._queries.tailor_resume(self._base_resume, jd, self._additional_bullets)
         except Exception as e:
             logger.error("LLM call failed for regeneration of '%s': %s", resume_name, e)
             return None
 
-        tailored_tex = tailored_tex.strip()
-        if tailored_tex.startswith("```"):
-            tailored_tex = tailored_tex[tailored_tex.find("\n") + 1:]
-        if tailored_tex.endswith("```"):
-            tailored_tex = tailored_tex[:-3].rstrip()
-
-        if "\\documentclass" not in tailored_tex:
+        if not tailored_tex:
             logger.error("LLM output doesn't look like valid LaTeX for '%s'", resume_name)
             return None
 
@@ -271,28 +210,13 @@ class ResumeBuilder:
         """
         logger.info("Generating resume for: %s at %s", job_title, company)
 
-        prompt = _TAILOR_PROMPT.format(
-            base_resume=self._base_resume,
-            job_description=job_description,
-        )
-        prompt += _EXPERIENCE_BOOST_PROMPT
-
         try:
-            tailored_tex = self._client.chat(prompt)
+            tailored_tex = self._queries.tailor_resume(self._base_resume, job_description, self._additional_bullets,)
         except Exception as e:
             logger.error("LLM call failed for '%s': %s", job_title, e)
             return None
 
-        # Strip markdown fences if LLM adds them despite instructions
-        tailored_tex = tailored_tex.strip()
-        if tailored_tex.startswith("```"):
-            first_newline = tailored_tex.find("\n")
-            tailored_tex = tailored_tex[first_newline + 1:]
-        if tailored_tex.endswith("```"):
-            tailored_tex = tailored_tex[:-3].rstrip()
-
-        # Validate it looks like LaTeX
-        if "\\documentclass" not in tailored_tex:
+        if not tailored_tex:
             logger.error("LLM output doesn't look like valid LaTeX for '%s'", job_title)
             return None
 
@@ -382,7 +306,3 @@ class ResumeBuilder:
         except Exception as e:
             logger.error("pdflatex failed: %s", e)
             return None
-
-    def close(self):
-        """Close the GenAI client."""
-        self._client.close()

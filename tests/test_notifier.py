@@ -1,5 +1,7 @@
 """Tests for email digest builder."""
 
+from datetime import date
+
 from scrapers.base import JobPosting
 from services.notifier import _build_html
 
@@ -12,7 +14,7 @@ def _sample_match():
         location="San Francisco, CA",
         description="Backend role focusing on distributed systems.",
         url="https://example.com/jobs/1",
-        posted_date="2024-01-10",
+        posted_date=date(2024, 1, 10),
     )
     return (job, 8, "Strong match on Python, AWS, and backend focus.")
 
@@ -36,7 +38,7 @@ def test_build_html_multiple_matches():
         location="Remote",
         description="Infrastructure and platform engineering.",
         url="https://example.com/jobs/2",
-        posted_date="",
+        posted_date=None,
     )
     m2 = (job2, 7, "Good fit for infrastructure interest.")
     matches = [m1, m2]

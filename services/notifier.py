@@ -100,7 +100,7 @@ def _build_html(
                 </a></strong><br>
                 <span style="color:#555;">{job.company}</span>
                 {f' &mdash; {job.location}' if job.location else ''}
-                {f'<br><span style="color:#888; font-size:0.9em;">Posted: {job.posted_date}</span>' if job.posted_date else ''}
+                {f'<br><span style="color:#888; font-size:0.9em;">Posted: {job.posted_date:%d %b %Y}</span>' if job.posted_date else ''}
             </td>
             <td style="padding:12px; border-bottom:1px solid #eee; text-align:center;">
                 <span style="font-size:1.4em; font-weight:bold; color:{color};">

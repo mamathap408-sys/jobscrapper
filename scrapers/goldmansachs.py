@@ -30,7 +30,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -69,35 +69,14 @@ query GetRoles($searchQueryInput: RoleSearchQueryInput!) {
 """
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html)
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
 class GoldmanSachsScraper(BaseScraper):
     """Scrapes Goldman Sachs careers via their GraphQL API (no browser needed)."""
 
-    def __init__(self, max_age_days: int | None = None, **kwargs):
-        """Initialize with optional age filter.
-
-        Args:
-            max_age_days: Not currently used (GS API doesn't expose posted dates),
-                          but accepted for interface consistency.
-        """
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/125.0.0.0 Safari/537.36",
-            },
-            follow_redirects=True,
+    def __init__(self, **kwargs):
+        # max_age_days is accepted but unused — the GS API doesn't expose posted dates
+        super().__init__(
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            **kwargs,
         )
 
     def scrape(self, url: str) -> list[JobPosting]:
@@ -262,7 +241,7 @@ class GoldmanSachsScraper(BaseScraper):
             location=location,
             description=description,
             url=job_url,
-            posted_date="",
+            posted_date=None,
             job_num=source_id,
         )
 
@@ -317,7 +296,7 @@ class GoldmanSachsScraper(BaseScraper):
                           "preferredQualifications", "aboutUs"):
                 val = role.get(field, "")
                 if val and val.strip():
-                    desc_parts.append(_strip_html(val))
+                    desc_parts.append(strip_html(val))
 
             # Also grab skills if present
             skills = role.get("skills") or []
@@ -328,7 +307,3 @@ class GoldmanSachsScraper(BaseScraper):
         except (json.JSONDecodeError, AttributeError) as e:
             logger.warning("Failed to parse __NEXT_DATA__ from %s: %s", url, e)
             return ""
-
-    def close(self):
-        """Close the httpx client."""
-        self._client.close()

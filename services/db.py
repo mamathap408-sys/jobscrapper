@@ -71,7 +71,8 @@ class JobDatabase:
                 matched BOOLEAN DEFAULT 0,
                 job_description TEXT,
                 resume_name TEXT,
-                resume_generated_at TIMESTAMP
+                resume_generated_at TIMESTAMP,
+                scraper TEXT
             )
         """)
         self._conn.execute("""
@@ -152,18 +153,19 @@ class JobDatabase:
             """
             INSERT INTO seen_jobs (job_id, job_num, title, company, location, url,
                                    first_seen, last_seen, match_score, match_reason, matched,
-                                   job_description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   job_description, scraper)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 match_score = excluded.match_score,
                 match_reason = excluded.match_reason,
                 matched = excluded.matched,
-                job_description = excluded.job_description
+                job_description = excluded.job_description,
+                scraper = excluded.scraper
             """,
             (
                 job.job_id, job.job_num, job.title, job.company, job.location, job.url,
-                now, now, match_score, match_reason, int(matched), job.description,
+                now, now, match_score, match_reason, int(matched), job.description, job.scraper,
             ),
         )
         self._conn.commit()
@@ -206,7 +208,7 @@ class JobDatabase:
         rows = self._conn.execute(
             """
             SELECT job_id, job_num, title, company, location, url,
-                   match_score, match_reason, matched, job_description
+                   match_score, match_reason, matched, job_description, scraper, resume_name
             FROM seen_jobs
             WHERE notified = 0
             ORDER BY match_score DESC

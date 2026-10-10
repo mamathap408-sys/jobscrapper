@@ -18,13 +18,11 @@ Optional client-side filters can still be provided in the board URL query string
 """
 
 import logging
-import re
-from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 
-from scrapers.base import BaseScraper, JobPosting
+from scrapers.base import BaseScraper, JobPosting, strip_html, normalize_company, date_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -36,38 +34,12 @@ _DEFAULT_CITY_ALIASES = {
 }
 
 
-def _strip_html(html: str) -> str:
-    """Remove HTML tags from a string."""
-    clean = re.sub(r"<[^>]+>", " ", html or "")
-    clean = re.sub(r"\s+", " ", clean)
-    return clean.strip()
-
-
-def _normalize_company(token: str) -> str:
-    """Turn a board token into a readable fallback company name."""
-    text = token.replace("-", " ").replace("_", " ").strip()
-    return " ".join(part.capitalize() for part in text.split()) or token
-
-
 class GreenhouseScraper(BaseScraper):
     """Scrapes Greenhouse job boards via the public Job Board API."""
 
-    def __init__(self, cities: list[str] | None = None, max_age_days: int | None = None, **kwargs):
+    def __init__(self, cities: list[str] | None = None, **kwargs):
+        super().__init__(headers={"Accept": "application/json"}, **kwargs)
         self._cities = {city.strip().lower() for city in (cities or sorted(_DEFAULT_CITY_ALIASES)) if city.strip()}
-        self._max_age_days = max_age_days
-        self._client = httpx.Client(
-            timeout=30,
-            verify=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-            },
-            follow_redirects=True,
-        )
 
     def scrape(self, url: str) -> list[JobPosting]:
         """Fetch all public jobs for a Greenhouse board URL."""
@@ -90,7 +62,6 @@ class GreenhouseScraper(BaseScraper):
         company = self._extract_company(data, board_token)
 
         jobs = []
-        now = datetime.now(timezone.utc)
         for item in items:
             job = self._parse_job(item, company)
             if not job:
@@ -99,10 +70,9 @@ class GreenhouseScraper(BaseScraper):
                 continue
             if not self._matches_filters(job, item, filters):
                 continue
-            if self._max_age_days is not None and not self._within_age(job.posted_date, now):
-                continue
             jobs.append(job)
 
+        jobs = [job for job in jobs if self._within_age(job.posted_date)]
         logger.info("Greenhouse/%s: %d jobs", board_token, len(jobs))
         return jobs
 
@@ -139,7 +109,7 @@ class GreenhouseScraper(BaseScraper):
                 value = meta.get(key)
                 if value:
                     return str(value)
-        return _normalize_company(board_token)
+        return normalize_company(board_token)
 
     def _parse_job(self, item: dict, company: str) -> JobPosting | None:
         """Parse a Greenhouse API job item into a JobPosting."""
@@ -155,11 +125,9 @@ class GreenhouseScraper(BaseScraper):
         elif raw_location:
             location = str(raw_location).strip()
 
-        description = _strip_html(str(item.get("content", "")))
+        description = strip_html(str(item.get("content", "")))
         job_url = str(item.get("absolute_url", "")).strip()
-        posted_date = self._parse_iso_date(
-            str(item.get("updated_at") or item.get("created_at") or "")
-        )
+        posted_date = date_or_none(item.get("updated_at") or item.get("created_at"))
 
         job_num = ""
         metadata = item.get("metadata")
@@ -183,17 +151,6 @@ class GreenhouseScraper(BaseScraper):
             posted_date=posted_date,
             job_num=job_num,
         )
-
-    @staticmethod
-    def _parse_iso_date(value: str) -> str:
-        """Parse an ISO date/time string to YYYY-MM-DD."""
-        if not value:
-            return ""
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
 
     def _matches_filters(self, job: JobPosting, raw_item: dict, filters: dict[str, str]) -> bool:
         """Apply department/keyword filters from the board URL."""
@@ -228,17 +185,3 @@ class GreenhouseScraper(BaseScraper):
         if not combined.strip():
             return True
         return any(city in combined for city in self._cities) or "remote" in combined
-
-    def _within_age(self, posted_date: str, now: datetime) -> bool:
-        """Check if a posted date is within max_age_days."""
-        if not posted_date or self._max_age_days is None:
-            return True
-        try:
-            dt = datetime.strptime(posted_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-            return (now - dt).days <= self._max_age_days
-        except ValueError:
-            return True
-
-    def close(self):
-        """Close the shared HTTP client."""
-        self._client.close()

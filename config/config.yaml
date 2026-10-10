@@ -1,102 +1,39 @@
-profiles:
-  - title: "Software Developer / Technical Support / Operations Support / Entry Level Roles"
-    skills:
-      - Java (primary)
-      - Python
-      - SQL
-      - HTML/CSS
-      - Spring Boot
-      - Spring
-      - Spring Data JPA
-      - REST
-      - REST APIs
-      - Microservices
-      - JUnit
-      - OAuth2
-      - PostgreSQL
-      - SQLite
-      - Docker
-      - LLM APIs (Claude, OpenAI)
-      - Playwright
-      - Linux
-      - Data Structures & Algorithms
-      - Object-Oriented Programming
-      - Database Design
-      - API Design
-      - Web Scraping
-      - Automation
-      - Troubleshooting
-      - SaaS Platforms
-      - RCA (Root Cause Analysis)
-      - API Debugging
-      - Ticketing Systems
-      - Customer Communication
-    tools:
-      - Git
-      - IntelliJ IDEA
-      - PyCharm
-      - Eclipse
-      - Postman
-      - Docker
-      - Linux
-      - Claude Code
-      - Slack
-      - Excel
-      - JIRA
-      - ServiceNow
-    experience_years: 1.5
-    location_preference: "Bangalore, India; Hyderabad, India; Remote"
-    additional_criteria: |
-      Open to any role — SWE roles are preferred but support, operations, and data roles are welcome too.
-      Strong in Java (primary), Python, Spring Boot, REST, Microservices, and GenAI/LLM integration.
-      Experience at Amazon as Sr. SPS Associate with RCA, API debugging, and Technical Support.
-      Built production-grade projects: URL shortener (Spring Boot + PostgreSQL + Docker), LLM-powered job scraper (Python, Playwright, SQLite).
-      CS fundamentals: DSA, OOP, database design.
-      Interested in backend, full-stack, platform engineering, technical support, or operations teams.
-      Open to product-based companies and startups.
-      Not interested in pure call-center or L1-only support roles.
-      B.Tech in ECE from JNTUA, self-taught software engineering transition.
-
 scoring_instructions: |
   Follow these steps IN ORDER for each job. Do not skip steps or freelance.
-
-  ## Candidate Resume
-
-  Education: B.Tech (2022 batch)
-  Location: Bangalore | Open to remote
-  Work Experience:
-    - Sr. Seller Partner Support Associate, Amazon (1.5 years)
-      RCA, API debugging, troubleshooting, escalation handling, ticketing systems (JIRA, ServiceNow)
-  Technical Skills: Java, Python, SQL, Spring Boot, React.js, Docker, Excel
-  Note: Self-taught developer with personal projects, no professional SWE role yet.
-
-  ## Step 1: DISQUALIFY CHECK (if any match → assign score and STOP)
+  
+  ## Step 1: DISQUALIFY CHECK (check top-to-bottom, FIRST match → assign score and STOP)
   - Specialized domain candidate cannot do (CA, nurse, lawyer, licensed engineer) → score 1
-  - Requires 5+ years in a specific field → score 1
-  - Requires 4+ years in any field → score 2
-  - Senior / L5+ / 3+ years required SWE role → score 2
-  - Targets a specific graduation batch after 2022 (e.g. "2023 batch only", "2024 passout", "2025 graduates only") → score 1
+  - Title indicates extreme seniority (VP, Director, Principal, Fellow, Chief, Head of, Sr. Manager, Staff Engineer) or requires PhD → score 1
+  - Targets a graduation batch after 2022 (e.g. "2023 batch only", "2025 graduates only") → score 1
+  - Pure clerical/back-office downgrade with no tech or analytical component (e.g. data entry,
+    call center agent, collections, KYC/AML, claims processing) → score 1
+    EXEMPTION to THIS rule only: support/ops roles at or above Amazon SPS Associate level
+    (same or similar seniority/scope/responsibilities) are NOT a downgrade, even if non-technical.
+  - Requires 3+ years in any field → score 1
 
   ## Step 2: EXTRACT EXPERIENCE REQUIREMENT
   Find the exact years of experience the job posting states.
   If none mentioned anywhere in the posting → treat as 0 years.
 
   ## Step 3: CLASSIFY ROLE TYPE (pick the FIRST match)
-  A. SDE / SWE / Software Engineer / Backend / Full-Stack / Engineer (software)
-  B. QA / SDET / Test Engineer
+  A. SDE / SWE / Software Engineer / Backend / Full-Stack / Engineer (software) / QA / SDET / Test Engineer
   C. Support (Tech Support, Customer Support, SaaS Support, Seller Support, Account Support)
   D. Operations / Data Analyst / Associate / Sales Ops
   E. Any other role
 
   ## Step 4: LOOK UP BASE SCORE
 
-  Experience →    0-1 yrs     1-2 yrs     2+ yrs
-  ─────────────────────────────────────────────────
-  A (SDE)         9           6           3
-  B (QA)          9           5           3
-  C (Support)     9           9           7
-  D (Ops)         9           7           5
-  E (Other)       7           5           3
+  Experience →    0-1 yrs     2 yrs
+  ─────────────────────────────────
+  A (SDE/QA)      9           6
+  C (Support)     9           7
+  D (Ops)         9           5
+  E (Other)       7           5
+
+  (If the JD states a single number, use it directly. If it states a range, use the MINIMUM
+  of that range to pick the bucket. Examples: "0-2 years" → min is 0 → falls in "0-1" bucket.
+  "1-2 years" → min is 1 → falls in "0-1" bucket. "2-3 years" → min is 2 → falls in "2" bucket.
+  "3-5 years" → min is 3 → already disqualified in Step 1, never reaches this table.)
 
   ## Step 5: ADJUSTMENTS (apply only these, max -1 each)
   - Location: not Bangalore and not Remote → subtract 1
@@ -106,7 +43,7 @@ scoring_instructions: |
 
   ## Response Format
   In your reason, state: (1) the experience requirement you found (or "no experience mentioned"),
-  (2) the role type you picked (A/B/C/D/E), (3) any adjustments applied.
+  (2) the role type you picked (A/C/D/E), (3) any adjustments applied.
   Return the final score (1-10) and a 1-sentence summary.
 
 genai:
@@ -117,6 +54,14 @@ genai:
   password: "xxxx"              # Env var reference (base64-encoded)
   model: "claude-opus-4-6"
   application_name: "job-posting-watcher"
+  # Public Anthropic rates for claude-opus-4-6 (not Visa's actual contracted rate,
+  # which may differ — update if you get the real negotiated numbers).
+  # cache_write assumes the default 5-minute cache TTL (1-hour TTL is $10/M instead).
+  pricing:
+    input_per_million: 5.0
+    output_per_million: 25.0
+    cache_write_per_million: 6.25
+    cache_read_per_million: 0.50
   match_threshold: 3                         # 1-10 score, only notify if >= this
 
 email:
@@ -127,16 +72,29 @@ email:
 
 resume_builder:
   threshold: 7                       # generate resumes for jobs scoring > this
-  base_resume: "data/resume_v3_onepage.tex"
+  base_resume: "data/resume_v5"
+  exp_additional_bullets: "config/exp_additional_bullets.yaml"  # extra Amazon bullets the tailoring LLM can pick from
   attach_resume: true               # when true, generate + attach PDFs before sending email
+  enabled_scrapers:                  # only generate/attach resumes for jobs from these scraper types
+    - workday
+    - successfactors
+    - google
+    - goldmansachs
+    - greenhouse
+    - lever
+    - ashby
   tex_bin: "/Library/TeX/texbin"     # path to TeX binaries (pdflatex), added to PATH if set
 
 schedule:
   interval_minutes: 60
   delay_between_sites_seconds: 5
 
+# Skip job postings older than this many days. Shared across all scrapers.
+max_age_days: 10
+
 # Auto-apply settings (used by apply.py)
 apply:
+  auto_apply: true                   # true = auto-apply after each scrape cycle in main.py
   headless: false                    # true = invisible browser, false = visible (default)
   test_mode: false                    # true = stop before final submit (dry run)
   apply_threshold: 7                 # only auto-apply to jobs >= this score
@@ -153,56 +111,30 @@ apply:
       company: "Walmart"
       reason: "too low salary"
       instructions: "Only skip entry-level 'Resolution Coordinator'. Do NOT skip Sr. Resolution Coordinator, Senior Resolution Coordinator, Lead Resolution Coordinator — those are valid higher-paying roles."
-  regenerate_resumes: true             # regenerate resumes before applying (overwrites existing)
+  regenerate_resumes: false             # regenerate resumes before applying (overwrites existing)
   resume_freshness_days: 1             # skip regeneration if resume was generated within this many days
   skills_min: 8                      # minimum skills to fill (keep retrying until this)
   skills_max: 20                     # ask LLM for this many candidates per round
   skills_retry_count: 3              # max LLM back-and-forth attempts for alternatives
 
-# Workday API settings
-# Per-portal location facets are in config/workday_locations.yaml
+# Workday per-portal location facets are in config/workday_locations.yaml
 # (generated by: python scripts/discover_locations.py)
-workday:
-  max_age_days: 2  # Skip jobs posted more than 10 days ago
 
-amazon:
-  max_age_days: 2
-
-cognizant:
-  max_age_days: 2
-
-successfactors:
-  max_age_days: 2
-
-google:
-  max_age_days: 2
-
-hcl:
-  max_age_days: 2
-
-infosys:
-  max_age_days: 2
-
-goldmansachs:
-  max_age_days: 2
-
+# City filters for the job-board scrapers that support them.
 greenhouse:
   cities:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 14
 
 lever:
   cities:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 14
 
 ashby:
   cities:
     - Bengaluru
     - Bangalore
     - Hyderabad
-  max_age_days: 14
